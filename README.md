@@ -96,7 +96,17 @@ The full local backup cycle completes in **under 300 ms**, ensuring minimal late
 | Pro      | 20GB + achievements + Supabase sync                    | $7/year                  |
 | Elite    | Unlimited storage + mod/config sync + social dashboard | $15/year or $50 lifetime |
 
-### Branch-Based Tiers (New)
+### Auto-Save & Timing-Based Tiers (Updated)
+| Tier     | Auto-Save Triggers                     | Manual Intervals | Features                                | Price     |
+| -------- | -------------------------------------- | ---------------- | --------------------------------------- | --------- |
+| Free     | Hourly checks + daily auto-save        | 1 hour minimum   | Basic save protection                   | $0        |
+| Standard | Save file changes + 30-min intervals   | 15 min minimum   | Multiple playthroughs, basic naming     | $7/year   |
+| Pro      | Real-time file monitoring + 5-min intervals | 1 min minimum   | Advanced branch management, tags        | $10/year  |
+| Elite    | Instant change detection + custom intervals | Any interval     | Full branch control, compare, share     | $20/year  |
+
+**Auto-Save Strategy:** Free tier gets reliable hourly protection. Paid tiers unlock real-time monitoring and frequent saves. Perfect for gamers who want immediate backup when saves change or frequent manual save points during intense gaming sessions.
+
+### Branch-Based Tiers (Legacy)
 | Tier     | Branches/Game | Versions/Branch | Features                                | Price     |
 | -------- | ------------- | --------------- | --------------------------------------- | --------- |
 | Free     | 1 branch      | 3 versions      | Basic save protection                   | $0        |
@@ -123,6 +133,12 @@ The full local backup cycle completes in **under 300 ms**, ensuring minimal late
 * Offer both models - users choose storage limits OR branch limits.
 * Premium users get both unlimited storage AND unlimited branches.
 * Double conversion funnel increases upgrade opportunities.
+
+**Auto-Save Conversion:**
+* Free users get basic hourly protection - enough for casual gamers.
+* Real-time monitoring creates immediate upgrade urgency for serious players.
+* Custom intervals appeal to speedrunners and completionists who need frequent saves.
+* "Never lose progress again" messaging targets anxiety-driven upgrades.
 
 ## Roadmap
 
