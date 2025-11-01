@@ -88,6 +88,7 @@ The full local backup cycle completes in **under 300 ms**, ensuring minimal late
 
 ## Monetization Model
 
+### Storage-Based Tiers (Original)
 | Tier     | Features                                               | Price                    |
 | -------- | ------------------------------------------------------ | ------------------------ |
 | Free     | Local versioning only                                  | $0                       |
@@ -95,11 +96,33 @@ The full local backup cycle completes in **under 300 ms**, ensuring minimal late
 | Pro      | 20GB + achievements + Supabase sync                    | $7/year                  |
 | Elite    | Unlimited storage + mod/config sync + social dashboard | $15/year or $50 lifetime |
 
+### Branch-Based Tiers (New)
+| Tier     | Branches/Game | Versions/Branch | Features                                | Price     |
+| -------- | ------------- | --------------- | --------------------------------------- | --------- |
+| Free     | 1 branch      | 3 versions      | Basic save protection                   | $0        |
+| Standard | 3 branches    | 10 versions     | Multiple playthroughs, basic naming     | $7/year   |
+| Pro      | 10 branches   | 50 versions     | Advanced branch management, tags        | $10/year  |
+| Elite    | Unlimited     | Unlimited       | Full branch control, compare, share     | $20/year  |
+
+**Branch Strategy:** Limits number of concurrent save progressions per game. Perfect for NewGame+ players who want to maintain separate story branches without losing previous progress.
+
 ### Conversion Strategy
 
+**Storage Model:**
 * Free tier hooks users into the ecosystem.
 * Cloud storage and achievement sync encourage upgrade.
 * Targeted campaigns for streamers, modders, and speedrunners.
+
+**Branch Model:**
+* Free users experience save loss during NewGame+ - natural upgrade trigger.
+* Casual players start with basic protection, serious gamers upgrade for branches.
+* "Want to keep multiple story progressions? Upgrade to Standard!"
+* Branch limits create immediate pain point that drives conversions.
+
+**Combined Strategy:**
+* Offer both models - users choose storage limits OR branch limits.
+* Premium users get both unlimited storage AND unlimited branches.
+* Double conversion funnel increases upgrade opportunities.
 
 ## Roadmap
 
@@ -139,15 +162,21 @@ The full local backup cycle completes in **under 300 ms**, ensuring minimal late
 | **Competition**   | None in user-facing save versioning niche             |
 | **Risk**          | Moderate — small market awareness, high trust barrier |
 
-### Annual Revenue Projections (USD)
+### Annual Revenue Projections (USD) - Updated Models
 
-| Year   | Conservative | Speculative |
-| ------ | ------------ | ----------- |
-| Year 1 | $2,000       | $10,000     |
-| Year 2 | $5,000       | $25,000     |
-| Year 3 | $10,000      | $60,000     |
-| Year 4 | $20,000      | $120,000    |
-| Year 5 | $30,000      | $250,000    |
+| Year   | Conservative | Speculative | Notes                                  |
+| ------ | ------------ | ----------- | -------------------------------------- |
+| Year 1 | $3,000       | $15,000     | Branch model adds 50% conversion boost |
+| Year 2 | $8,000       | $35,000     | Dual-model retention improvement       |
+| Year 3 | $15,000      | $75,000     | Branch limits drive premium upgrades   |
+| Year 4 | $30,000      | $150,000    | Combined model maturity                |
+| Year 5 | $45,000      | $300,000    | Full feature ecosystem adoption        |
+
+**Revenue Model Impact:**
+* **Branch-based tiers** expected to increase conversion by 40-60%
+* **NewGame+ pain point** creates immediate upgrade urgency
+* **Dual conversion funnels** capture both storage and branch users
+* **Higher tier pricing** reflects increased value proposition
 
 ## Realistic Bottom Line
 
