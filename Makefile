@@ -62,16 +62,16 @@ help:
 # Start full development environment
 dev:
 	@echo "🚀 Starting Save Steward development environment..."
-	@cd save-steward && npm run tauri dev
+	npm run tauri dev
 
 # File watching with auto-rebuild
 watch:
 	@echo "👀 Watching files for changes..."
 	@echo "Terminal 1 (Backend):"
-	@echo "  cd save-steward/src-tauri && cargo watch -x check"
+	@echo "  cd src-tauri && cargo watch -x check"
 	@echo ""
 	@echo "Terminal 2 (Frontend):"
-	@echo "  cd save-steward && npm run dev"
+	@echo "  npm run dev"
 	@echo ""
 	@echo "Terminal 3 (UI):"
 	@echo "  make run"
@@ -79,7 +79,7 @@ watch:
 # Launch development app
 run:
 	@echo "🎮 Launching Save Steward..."
-	cd save-steward && npm run tauri dev
+	npm run tauri dev
 
 # ====================================================
 # BUILD COMMANDS
@@ -92,18 +92,18 @@ build: build-frontend build-backend
 # Build React frontend only
 build-frontend:
 	@echo "📦 Building React frontend..."
-	cd save-steward && npm run build
+	npm run build
 
 # Build Rust backend only
 build-backend:
 	@echo "🔧 Building Rust backend..."
-	cd save-steward/src-tauri && cargo build --release
+	cd src-tauri && cargo build --release
 
 # Create production release bundle
 release: build-release
 build-release:
 	@echo "🎁 Creating production release..."
-	cd save-steward && npm run tauri build --release
+	npm run tauri build --release
 
 # ====================================================
 # TESTING
@@ -116,7 +116,7 @@ test: test-backend test-frontend test-integration
 # Backend unit tests
 test-backend:
 	@echo "🧪 Running Rust tests..."
-	cd save-steward/src-tauri && cargo test
+	cd src-tauri && cargo test
 
 # Frontend tests (placeholder for when implemented)
 test-frontend:
@@ -160,7 +160,7 @@ lint: lint-backend lint-frontend
 
 lint-backend:
 	@echo "🔧 Running Clippy (Rust linter)..."
-	cd save-steward/src-tauri && cargo clippy --all-targets --all-features -- -D warnings
+	cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings
 
 lint-frontend:
 	@echo "📝 Running ESLint (JavaScript linter)..."
@@ -171,7 +171,7 @@ format: format-backend format-frontend
 
 format-backend:
 	@echo "🎨 Formatting Rust code..."
-	cd save-steward/src-tauri && cargo fmt
+	cd src-tauri && cargo fmt
 
 format-frontend:
 	@echo "🎨 Formatting JavaScript/TypeScript code..."
@@ -179,9 +179,11 @@ format-frontend:
 
 # Security audit
 audit:
-	@echo "🔒 Auditing dependencies for security issues..."
-	cd save-steward/src-tauri && cargo audit || echo "⚠️  cargo-audit not installed (cargo install cargo-audit)"
-	cd save-steward && npm audit --audit-level high || echo "⚠️  npm audit warnings (review manually)"
+	@echo "🔒 Running security audit..."
+	@echo "Auditing Rust dependencies..."
+	cd src-tauri && cargo audit
+	@echo "Auditing Node dependencies..."
+	npm audit
 
 # ====================================================
 # DATABASE OPERATIONS
@@ -195,12 +197,13 @@ db-init:
 
 # Run migrations
 db-migrate:
-	@echo "🔄 Running database migrations..."
-	@echo "⚠️  Database migrations not yet implemented"
-	@echo "   TODO: Implement migration system"
+	@echo "�️ Running database migrations..."
+	cd src-tauri && cargo run --bin save-steward -- migrate
 
 # Reset database
-db-reset: db-clean db-init
+db-reset:
+	@echo "🔄 Resetting database..."
+	cd src-tauri && cargo run --bin save-steward -- reset-db
 
 # Clean database
 db-clean:
@@ -222,18 +225,18 @@ clean: clean-frontend clean-backend
 
 clean-frontend:
 	@echo "🧹 Cleaning frontend build artifacts..."
-	cd save-steward && rm -rf dist node_modules/.vite
+	rm -rf dist node_modules/.vite
 
 clean-backend:
 	@echo "🧹 Cleaning Rust build artifacts..."
-	cd save-steward/src-tauri && cargo clean
+	cd src-tauri && cargo clean
 
 # Generate documentation
 docs: docs-backend docs-frontend
 
 docs-backend:
 	@echo "📚 Generating Rust documentation..."
-	cd save-steward/src-tauri && cargo doc --open
+	cd src-tauri && cargo doc --open
 
 docs-frontend:
 	@echo "📚 Generating frontend documentation..."
@@ -242,14 +245,14 @@ docs-frontend:
 # Install all dependencies
 install:
 	@echo "📦 Installing all dependencies..."
-	cd save-steward && npm install
-	cd save-steward/src-tauri && cargo build
+	npm install
+	cd src-tauri && cargo build
 
 # Update all dependencies
 update:
 	@echo "🔄 Updating dependencies..."
-	cd save-steward && npm update
-	cd save-steward/src-tauri && cargo update
+	npm update
+	cd src-tauri && cargo update
 
 # ====================================================
 # DEVELOPMENT HELPERS
