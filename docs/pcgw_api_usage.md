@@ -358,6 +358,69 @@ Store retrieved data in these tables:
 5. **Respect rate limits** - Add delays between requests
 6. **Store page name** - Needed for future wikitext queries
 
+## Platform-Specific Executable Detection
+
+From version 2.x, the application automatically detects and stores platform-specific executable files using PCGamingWiki data.
+
+### How It Works
+
+1. **PCGW Data Extraction**: Parse wikitext for `{{file|filename}}` templates and platform-specific executable fields
+2. **System Detection**: Auto-detect running platform (Linux/Windows/macOS) using compile-time flags
+3. **Storage**: Store executables as JSON: `{"linux": ["run.sh"], "windows": ["Game.exe"], "macos": ["Game.app"]}`
+4. **Smart Detection**: Prioritize stored PCGW data over directory scanning
+
+### Executable Patterns by Platform
+
+**Windows:**
+- Extensions: `.exe`, `.bat`, `.cmd`
+- Examples: `Game.exe`, `Launcher.exe`, `Start.bat`
+
+**Linux:**
+- Executable permissions (chmod +x)
+- Extensions: `.sh`, `.bin`, `.run`, `.x86_64`
+- Common names: `run`, `start`, `launch`, `game`
+- Examples: `run.sh`, `start.sh`, `game.x86_64`
+
+**macOS:**
+- Extensions: `.app` (application bundles)
+- Examples: `Game.app`, `Launcher.app`
+
+### PCGW Wikitext Parsing
+
+Extract executable information:
+```bash
+# Get wikitext
+curl -s "https://www.pcgamingwiki.com/w/api.php?action=parse&page=Loop_Hero&prop=wikitext&format=json" | \
+jq -r '.parse.wikitext."*"' | grep -E "(executable|\{\{file\|)"
+
+# Output:
+{{file|run.sh}}
+|linux 32-bit executable= false
+|linux 64-bit executable= true
+```
+
+### Database Schema Changes
+
+Added `platform_executables` field to `games` table:
+```sql
+platform_executables TEXT -- JSON: {"linux": ["run.sh"], "windows": ["Game.exe"], "macos": ["Game.app"]}
+```
+
+### System Detection
+
+```rust
+#[cfg(target_os = "linux")] { "linux" }
+#[cfg(target_os = "windows")] { "windows" }
+#[cfg(target_os = "macos")] { "macos" }
+```
+
+### Fallback Strategy
+
+1. Try platform-specific stored executables
+2. Try legacy `executable_path` field
+3. Directory scanning with OS-aware logic
+4. Return error if no executable found
+
 ## Testing
 
 Test your integration with these well-documented games:
@@ -365,3 +428,5 @@ Test your integration with these well-documented games:
 - Cyberpunk 2077
 - Elden Ring
 - Baldur's Gate 3
+- Loop Hero (Linux executables)
+- Hades (Linux executables)
