@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Search } from "lucide-react";
 import "./App.css";
 import Sidebar from "./components/Sidebar";
 import QuickActions from "./components/QuickActions";
@@ -86,7 +87,7 @@ function App() {
           
           <div className="top-actions">
             <div className="search-bar">
-              <span className="search-icon">🔍</span>
+              <span className="search-icon"><Search size={18} /></span>
               <input type="text" placeholder="Search games..." />
             </div>
             <button className="add-game-btn" onClick={() => setIsAddGameModalOpen(true)}>
