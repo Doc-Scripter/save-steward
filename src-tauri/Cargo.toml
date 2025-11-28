@@ -50,3 +50,5 @@ mime_guess = "2.0"
 pe-parser = "0.3"
 tempfile = "3.0"
 winapi = { version = "0.3", features = ["winuser", "processthreadsapi"] }
+git2 = "0.19"
+tokio-util = "0.7"

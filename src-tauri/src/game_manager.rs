@@ -385,7 +385,7 @@ impl GameManager {
         Self::get_game_by_id(&conn, game_id)
     }
 
-    /// Delete a game (soft delete by setting is_active to false)
+    /// Delete a game and all associated data
     pub async fn delete_game(
         db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
         game_id: i64,
@@ -393,14 +393,24 @@ impl GameManager {
         let conn_guard = db.lock().await;
         let mut conn = conn_guard.get_connection().await;
 
-        // Soft delete the game
-        conn.execute(
-            "UPDATE games SET is_active = FALSE, updated_at = ? WHERE id = ?",
-            rusqlite::params![
-                Utc::now().to_rfc3339(),
-                game_id,
-            ],
-        ).map_err(|e| format!("Delete game error: {}", e))?;
+        // Start transaction
+        let tx = conn.transaction().map_err(|e| format!("Transaction error: {}", e))?;
+
+        // Delete in reverse dependency order
+        tx.execute("DELETE FROM git_save_snapshots WHERE game_id = ?", [game_id])?;
+        tx.execute("DELETE FROM cloud_sync_log WHERE game_id = ?", [game_id])?;
+        tx.execute("DELETE FROM git_save_commits WHERE game_id = ?", [game_id])?;
+        tx.execute("DELETE FROM git_branches WHERE game_id = ?", [game_id])?;
+        tx.execute("DELETE FROM git_repositories WHERE game_id = ?", [game_id])?;
+        tx.execute("DELETE FROM save_versions WHERE detected_save_id IN (SELECT id FROM detected_saves WHERE game_id = ?)", [game_id])?;
+        tx.execute("DELETE FROM detected_saves WHERE game_id = ?", [game_id])?;
+        tx.execute("DELETE FROM save_locations WHERE game_id = ?", [game_id])?;
+        tx.execute("DELETE FROM user_games WHERE game_id = ?", [game_id])?;
+        tx.execute("DELETE FROM game_identifiers WHERE game_id = ?", [game_id])?;
+        tx.execute("DELETE FROM games WHERE id = ?", [game_id])?;
+
+        // Commit transaction
+        tx.commit().map_err(|e| format!("Commit error: {}", e))?;
 
         Ok(())
     }

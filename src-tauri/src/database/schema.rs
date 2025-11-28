@@ -141,6 +141,104 @@ impl DatabaseSchema {
             [],
         )?;
 
+        // Create Git repositories table
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS git_repositories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id INTEGER NOT NULL UNIQUE,
+                local_path TEXT NOT NULL,
+                remote_url TEXT,
+                cloud_provider TEXT,                    -- 'github', 'gitlab', 'gitea', 'selfhosted'
+                default_branch TEXT DEFAULT 'main',
+                auto_commit INTEGER DEFAULT 1,
+                auto_branch INTEGER DEFAULT 1,
+                git_lfs_enabled INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_sync_at TIMESTAMP,
+                FOREIGN KEY (game_id) REFERENCES games(id)
+            )
+            "#,
+            [],
+        )?;
+
+        // Create Git save commits table
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS git_save_commits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id INTEGER NOT NULL,
+                git_commit_hash TEXT NOT NULL,
+                branch_name TEXT NOT NULL,
+                message TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                cloud_synced INTEGER DEFAULT 0,
+                cloud_sync_url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_current INTEGER DEFAULT 0,
+                FOREIGN KEY (game_id) REFERENCES games(id)
+            )
+            "#,
+            [],
+        )?;
+
+        // Create Git branches table
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS git_branches (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id INTEGER NOT NULL,
+                branch_name TEXT NOT NULL,
+                description TEXT,
+                is_active INTEGER DEFAULT 0,
+                last_commit_hash TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (game_id) REFERENCES games(id),
+                UNIQUE(game_id, branch_name)
+            )
+            "#,
+            [],
+        )?;
+
+        // Create cloud sync log table
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS cloud_sync_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id INTEGER NOT NULL,
+                sync_type TEXT NOT NULL,                -- 'push', 'pull', 'merge'
+                cloud_provider TEXT NOT NULL,
+                sync_status TEXT NOT NULL,              -- 'success', 'failed', 'pending'
+                error_message TEXT,
+                sync_url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (game_id) REFERENCES games(id)
+            )
+            "#,
+            [],
+        )?;
+
+        // Create Git save snapshots table
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS git_save_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id INTEGER NOT NULL,
+                commit_id INTEGER,
+                branch_name TEXT NOT NULL,
+                version_name TEXT NOT NULL,
+                compressed_path TEXT NOT NULL,
+                file_size_bytes INTEGER NOT NULL,
+                hash_sha256 TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_current INTEGER DEFAULT 0,
+                FOREIGN KEY (commit_id) REFERENCES git_save_commits(id),
+                FOREIGN KEY (game_id) REFERENCES games(id)
+            )
+            "#,
+            [],
+        )?;
+
         // Create indexes for performance
         Self::create_indexes(conn)?;
 

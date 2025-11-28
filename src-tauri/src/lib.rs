@@ -4,10 +4,12 @@ mod detection;
 mod auto_backup;
 mod game_manager;
 mod launch_utils;
+mod git_manager;
 
 use crate::database::connection::{EncryptedDatabase, DatabasePaths};
 use crate::database::models::AddGameRequest;
 use crate::game_manager::GameManager;
+use crate::git_manager::{GitSaveManager, types::*};
 use crate::launch_utils::launch_game_enhanced;
 use std::sync::Arc;
 
@@ -186,6 +188,145 @@ async fn delete_game_sync(game_id: i64) -> Result<(), String> {
     GameManager::delete_game(&db_conn, game_id).await?;
 
     Ok(())
+}
+
+#[tauri::command]
+async fn enable_git_for_game(game_id: i64) -> Result<String, String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+
+    // Initialize Git repository
+    let git_manager = GitSaveManager::new(db_conn.clone());
+    git_manager.initialize_game_repo(game_id).await
+        .map_err(|e| format!("Failed to initialize Git repository: {}", e))
+}
+
+#[tauri::command]
+async fn create_save_checkpoint(game_id: i64, message: String) -> Result<String, String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+
+    // Create save checkpoint
+    let git_manager = GitSaveManager::new(db_conn.clone());
+    git_manager.create_save_checkpoint(game_id, &message).await
+        .map_err(|e| format!("Failed to create save checkpoint: {}", e))
+}
+
+#[tauri::command]
+async fn create_save_branch(game_id: i64, branch_name: String, description: Option<String>) -> Result<(), String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+
+    // Create save branch
+    let git_manager = GitSaveManager::new(db_conn.clone());
+    git_manager.create_save_branch(game_id, &branch_name, description.as_deref()).await
+        .map_err(|e| format!("Failed to create save branch: {}", e))
+}
+
+#[tauri::command]
+async fn switch_save_branch(game_id: i64, branch_name: String) -> Result<(), String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+
+    // Switch save branch
+    let git_manager = GitSaveManager::new(db_conn.clone());
+    git_manager.switch_save_branch(game_id, &branch_name).await
+        .map_err(|e| format!("Failed to switch save branch: {}", e))
+}
+
+#[tauri::command]
+async fn restore_to_commit(game_id: i64, commit_hash: String) -> Result<(), String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+
+    // Restore to commit
+    let git_manager = GitSaveManager::new(db_conn.clone());
+    git_manager.restore_to_commit(game_id, &commit_hash).await
+        .map_err(|e| format!("Failed to restore to commit: {}", e))
+}
+
+#[tauri::command]
+async fn restore_to_timestamp(game_id: i64, timestamp: String) -> Result<String, String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+
+    // Parse timestamp
+    let target_time = chrono::DateTime::parse_from_rfc3339(&timestamp)
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+        .map_err(|e| format!("Invalid timestamp format: {}", e))?;
+
+    // Restore to timestamp
+    let git_manager = GitSaveManager::new(db_conn.clone());
+    git_manager.restore_to_timestamp(game_id, target_time).await
+        .map_err(|e| format!("Failed to restore to timestamp: {}", e))
+}
+
+#[tauri::command]
+async fn get_git_history(game_id: i64, branch: Option<String>) -> Result<serde_json::Value, String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+
+    // Get save history
+    let git_manager = GitSaveManager::new(db_conn.clone());
+    let history = git_manager.get_save_history(game_id).await
+        .map_err(|e| format!("Failed to get git history: {}", e))?;
+
+    // Convert to JSON
+    serde_json::to_value(history).map_err(|e| format!("Serialization error: {}", e))
+}
+
+#[tauri::command]
+async fn sync_to_cloud(game_id: i64) -> Result<serde_json::Value, String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+
+    // Sync to cloud
+    let git_manager = GitSaveManager::new(db_conn.clone());
+    let sync_result = git_manager.sync_to_cloud(game_id).await
+        .map_err(|e| format!("Failed to sync to cloud: {}", e))?;
+
+    // Convert to JSON
+    serde_json::to_value(sync_result).map_err(|e| format!("Serialization error: {}", e))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
