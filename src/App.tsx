@@ -96,12 +96,12 @@ function App() {
   const handleDeleteGame = async (game: GameData) => {
     if (confirm(`Are you sure you want to delete "${game.name}"?`)) {
       try {
-        // TODO: Implement delete_game backend command
-        console.log("Delete game:", game.id);
-        // For now, just refresh the list
-        fetchGames();
+        await invoke("delete_game_sync", { gameId: game.id });
+        console.log("Deleted game:", game.name);
+        fetchGames(); // Refresh the list
       } catch (error) {
         console.error("Failed to delete game:", error);
+        alert(`Failed to delete game: ${error}`);
       }
     }
   };

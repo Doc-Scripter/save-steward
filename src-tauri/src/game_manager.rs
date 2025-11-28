@@ -384,4 +384,24 @@ impl GameManager {
         // Return the updated game
         Self::get_game_by_id(&conn, game_id)
     }
+
+    /// Delete a game (soft delete by setting is_active to false)
+    pub async fn delete_game(
+        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        game_id: i64,
+    ) -> Result<(), String> {
+        let conn_guard = db.lock().await;
+        let mut conn = conn_guard.get_connection().await;
+
+        // Soft delete the game
+        conn.execute(
+            "UPDATE games SET is_active = FALSE, updated_at = ? WHERE id = ?",
+            rusqlite::params![
+                Utc::now().to_rfc3339(),
+                game_id,
+            ],
+        ).map_err(|e| format!("Delete game error: {}", e))?;
+
+        Ok(())
+    }
 }

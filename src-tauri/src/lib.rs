@@ -172,6 +172,22 @@ async fn update_game_sync(game_id: i64, request: AddGameRequest) -> Result<serde
     Ok(serde_json::to_value(result).map_err(|e| format!("Serialization error: {}", e))?)
 }
 
+#[tauri::command]
+async fn delete_game_sync(game_id: i64) -> Result<(), String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+
+    // Delete the game
+    GameManager::delete_game(&db_conn, game_id).await?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -185,6 +201,7 @@ pub fn run() {
             add_manual_game_sync,
             get_all_games,
             update_game_sync,
+            delete_game_sync,
             launch_game
         ])
         .run(tauri::generate_context!())
