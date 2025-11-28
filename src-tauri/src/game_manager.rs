@@ -1,7 +1,7 @@
-use crate::database::{DatabaseConnection, models::*};
+use crate::database::{models::*};
 use std::path::Path;
 use std::sync::Arc;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 
 pub struct GameManager;
 
@@ -39,17 +39,18 @@ impl GameManager {
     /// Insert game into database
     fn insert_game(tx: &rusqlite::Transaction, request: &AddGameRequest) -> Result<i64, String> {
         tx.execute(
-            "INSERT INTO games (name, developer, publisher, platform, platform_app_id,
-                              executable_path, installation_path, created_at, updated_at, is_active)
+            "INSERT INTO games (name, platform, platform_app_id,
+                              executable_path, installation_path, icon_base64, icon_path,
+                              created_at, updated_at, is_active)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rusqlite::params![
                 request.name,
-                request.developer,
-                request.publisher,
                 request.platform,
                 request.platform_app_id,
                 request.executable_path,
                 request.installation_path,
+                request.icon_base64,
+                request.icon_path,
                 Utc::now().to_rfc3339(),
                 Utc::now().to_rfc3339(),
                 true,
@@ -255,16 +256,31 @@ impl GameManager {
         Ok(tx.last_insert_rowid())
     }
 
+    /// Parse timestamp string from database to DateTime
+    fn parse_timestamp(timestamp_str: &str) -> Result<DateTime<Utc>, String> {
+        DateTime::parse_from_rfc3339(timestamp_str)
+            .map(|dt| dt.with_timezone(&Utc))
+            .map_err(|e| format!("Failed to parse timestamp '{}': {}", timestamp_str, e))
+    }
+
     /// Get game by ID
     fn get_game_by_id(conn: &rusqlite::Connection, game_id: i64) -> Result<Game, String> {
         let mut stmt = conn.prepare(
             "SELECT id, name, developer, publisher, platform, platform_app_id,
                     executable_path, installation_path, genre, release_date,
-                    cover_image_url, created_at, updated_at, is_active
+                    cover_image_url, icon_base64, icon_path, created_at, updated_at, is_active
              FROM games WHERE id = ?"
         ).map_err(|e| format!("Prepare statement error: {}", e))?;
 
         let game = stmt.query_row([game_id], |row| {
+            let created_at_str: String = row.get(13)?;
+            let updated_at_str: String = row.get(14)?;
+            
+            let created_at = Self::parse_timestamp(&created_at_str)
+                .unwrap_or_else(|_| Utc::now());
+            let updated_at = Self::parse_timestamp(&updated_at_str)
+                .unwrap_or_else(|_| Utc::now());
+
             Ok(Game {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -277,12 +293,115 @@ impl GameManager {
                 genre: row.get(8)?,
                 release_date: row.get(9)?,
                 cover_image_url: row.get(10)?,
-                created_at: Utc::now(), // TODO: Fix DateTime parsing
-                updated_at: Utc::now(), // TODO: Fix DateTime parsing
-                is_active: row.get(13)?,
+                icon_base64: row.get(11)?,
+                icon_path: row.get(12)?,
+                created_at,
+                updated_at,
+                is_active: row.get(15)?,
             })
         }).map_err(|e| format!("Query game error: {}", e))?;
 
         Ok(game)
+    }
+
+    /// Get all active games
+    pub async fn get_all_games(
+        db: &std::sync::Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+    ) -> Result<Vec<Game>, String> {
+        let conn_guard = db.lock().await;
+        let conn = conn_guard.get_connection().await;
+
+        let mut stmt = conn.prepare(
+            "SELECT id, name, developer, publisher, platform, platform_app_id,
+                    executable_path, installation_path, genre, release_date,
+                    cover_image_url, icon_base64, icon_path, created_at, updated_at, is_active
+             FROM games WHERE is_active = TRUE ORDER BY name ASC"
+        ).map_err(|e| format!("Prepare statement error: {}", e))?;
+
+        let games = stmt.query_map([], |row| {
+            let created_at_str: String = row.get(13)?;
+            let updated_at_str: String = row.get(14)?;
+            
+            let created_at = Self::parse_timestamp(&created_at_str)
+                .unwrap_or_else(|_| Utc::now());
+            let updated_at = Self::parse_timestamp(&updated_at_str)
+                .unwrap_or_else(|_| Utc::now());
+
+            Ok(Game {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                developer: row.get(2)?,
+                publisher: row.get(3)?,
+                platform: row.get(4)?,
+                platform_app_id: row.get(5)?,
+                executable_path: row.get(6)?,
+                installation_path: row.get(7)?,
+                genre: row.get(8)?,
+                release_date: row.get(9)?,
+                cover_image_url: row.get(10)?,
+                icon_base64: row.get(11)?,
+                icon_path: row.get(12)?,
+                created_at,
+                updated_at,
+                is_active: row.get(15)?,
+            })
+        })
+        .map_err(|e| format!("Query games error: {}", e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Collect games error: {}", e))?;
+
+        Ok(games)
+    }
+
+    /// Update an existing game
+    pub async fn update_game(
+        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        game_id: i64,
+        request: AddGameRequest,
+    ) -> Result<Game, String> {
+        let conn_guard = db.lock().await;
+        let mut conn = conn_guard.get_connection().await;
+
+        // Update the game
+        conn.execute(
+            "UPDATE games SET name = ?, platform = ?, platform_app_id = ?,
+                            executable_path = ?, installation_path = ?, 
+                            icon_base64 = ?, icon_path = ?, updated_at = ?
+             WHERE id = ?",
+            rusqlite::params![
+                request.name,
+                request.platform,
+                request.platform_app_id,
+                request.executable_path,
+                request.installation_path,
+                request.icon_base64,
+                request.icon_path,
+                Utc::now().to_rfc3339(),
+                game_id,
+            ],
+        ).map_err(|e| format!("Update game error: {}", e))?;
+
+        // Return the updated game
+        Self::get_game_by_id(&conn, game_id)
+    }
+
+    /// Delete a game (soft delete by setting is_active to false)
+    pub async fn delete_game(
+        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        game_id: i64,
+    ) -> Result<(), String> {
+        let conn_guard = db.lock().await;
+        let mut conn = conn_guard.get_connection().await;
+
+        // Soft delete the game
+        conn.execute(
+            "UPDATE games SET is_active = FALSE, updated_at = ? WHERE id = ?",
+            rusqlite::params![
+                Utc::now().to_rfc3339(),
+                game_id,
+            ],
+        ).map_err(|e| format!("Delete game error: {}", e))?;
+
+        Ok(())
     }
 }

@@ -7,13 +7,15 @@ pub struct Game {
     pub name: String,
     pub developer: Option<String>,
     pub publisher: Option<String>,
-    pub platform: String, // steam, epic, gog, standalone
+    pub platform: String, // steam, epic, gog, standalone, other
     pub platform_app_id: Option<String>,
     pub executable_path: Option<String>,
     pub installation_path: Option<String>,
     pub genre: Option<String>,
     pub release_date: Option<String>,
     pub cover_image_url: Option<String>,
+    pub icon_base64: Option<String>, // Base64 encoded icon
+    pub icon_path: Option<String>, // Original exe path for auto-update
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub is_active: bool,
@@ -129,12 +131,12 @@ pub struct CreateGameRequest {
 #[derive(Debug, Deserialize)]
 pub struct AddGameRequest {
     pub name: String,
-    pub developer: Option<String>,
-    pub publisher: Option<String>,
     pub platform: String,
     pub platform_app_id: Option<String>,
     pub executable_path: Option<String>,
     pub installation_path: Option<String>,
+    pub icon_base64: Option<String>, // Base64 encoded icon
+    pub icon_path: Option<String>, // Original exe path for icon extraction
 }
 
 #[derive(Debug, Deserialize)]
