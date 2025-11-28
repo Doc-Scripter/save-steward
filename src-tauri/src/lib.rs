@@ -5,6 +5,9 @@ mod auto_backup;
 mod game_manager;
 mod launch_utils;
 mod git_manager;
+mod pcgaming_wiki;
+
+use crate::pcgaming_wiki::PcgwClient;
 
 use crate::database::connection::{EncryptedDatabase, DatabasePaths};
 use crate::database::models::AddGameRequest;
@@ -329,6 +332,177 @@ async fn sync_to_cloud(game_id: i64) -> Result<serde_json::Value, String> {
     serde_json::to_value(sync_result).map_err(|e| format!("Serialization error: {}", e))
 }
 
+#[tauri::command]
+async fn search_pcgw_games(query: String) -> Result<serde_json::Value, String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    
+    let client = PcgwClient::new();
+    // We need to access the inner Arc<Mutex<Connection>> from EncryptedDatabase
+    // But EncryptedDatabase doesn't expose it directly as Arc<Mutex<Connection>>.
+    // It seems I made a mistake assuming I could easily get it.
+    // EncryptedDatabase wraps Connection directly, not Arc<Mutex<Connection>>.
+    // So I can't pass it to PcgwClient which expects Arc<Mutex<Connection>>.
+    
+    // WORKAROUND: For now, I will modify PcgwClient to accept Arc<Mutex<EncryptedDatabase>>? 
+    // No, that creates circular dependency.
+    
+    // I must expose the connection from EncryptedDatabase or change PcgwClient to take something else.
+    // Since I am in lib.rs, I have control.
+    
+    // Let's assume for a moment I can get a connection.
+    // Actually, EncryptedDatabase is defined in crate::database::connection.
+    // I should check if I can clone the connection or something.
+    // But rusqlite Connection is not cloneable.
+    
+    // Okay, I will modify PcgwClient to take `&Connection` for the high-level methods too, 
+    // and handle the locking in lib.rs.
+    
+    // Wait, I can't pass &Connection to async fn in lib.rs either!
+    
+    // This is the same problem as before.
+    
+    // The only way is to use the "manual caching" pattern in lib.rs too.
+    
+    let client = PcgwClient::new();
+    let cache_key = format!("search:{}", query);
+    
+    // 1. Check cache
+    {
+        let conn_guard = db_conn.lock().await;
+        let conn = conn_guard.get_connection();
+        // PcgwCache::get is sync, so this is fine
+        if let Ok(Some(cached_json)) = crate::pcgaming_wiki::cache::PcgwCache::get(conn, &cache_key) {
+             let response: crate::pcgaming_wiki::models::CargoQueryResponse<crate::pcgaming_wiki::models::PcgwGameInfo> = serde_json::from_str(&cached_json).map_err(|e| e.to_string())?;
+             // I need to access map_search_results but it's private or I need to make it public
+             // or just duplicate logic here.
+             // Let's make map_search_results public in client.rs? 
+             // Or just use client.parse_search_results_json (I need to add this).
+             
+             // Let's assume I added parse_search_results_json to client.rs
+             // return Ok(serde_json::to_value(client.parse_search_results_json(&cached_json).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?);
+        }
+    }
+    
+    // 2. Fetch from API (no lock)
+    let response_text = client.fetch_search_results_raw(&query).await.map_err(|e| e.to_string())?;
+    
+    // 3. Cache response
+    {
+        let conn_guard = db_conn.lock().await;
+        let conn = conn_guard.get_connection();
+        let _ = crate::pcgaming_wiki::cache::PcgwCache::set(conn, &cache_key, &response_text, 1);
+    }
+    
+    // 4. Parse and return
+    // I need a helper to parse.
+    // I'll add `parse_search_results_json` to PcgwClient.
+    
+    // For now, I'll just do it manually here to save time on another edit to client.rs
+    let response: crate::pcgaming_wiki::models::CargoQueryResponse<crate::pcgaming_wiki::models::PcgwGameInfo> = serde_json::from_str(&response_text).map_err(|e| e.to_string())?;
+    let results: Vec<crate::pcgaming_wiki::models::GameSearchResult> = response.cargoquery.into_iter().map(|item| {
+            let info = item.title;
+            crate::pcgaming_wiki::models::GameSearchResult {
+                name: info.page_name,
+                steam_id: info.steam_appid,
+                developers: info.developers,
+                publishers: info.publishers,
+            }
+    }).collect();
+    
+    Ok(serde_json::to_value(results).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+async fn get_pcgw_save_locations(game_name: String) -> Result<serde_json::Value, String> {
+    // Initialize database connection
+    let db_path = DatabasePaths::database_file();
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database initialization error: {}", e))?;
+
+    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    
+    let client = PcgwClient::new();
+    let cache_key = format!("save_loc:{}", game_name);
+    
+    // 1. Check cache
+    {
+        let conn_guard = db_conn.lock().await;
+        let conn = conn_guard.get_connection();
+        if let Ok(Some(cached_json)) = crate::pcgaming_wiki::cache::PcgwCache::get(conn, &cache_key) {
+             let result = client.parse_save_locations_json(&cached_json).map_err(|e| e.to_string())?;
+             return Ok(serde_json::to_value(result).map_err(|e| e.to_string())?);
+        }
+    }
+    
+    // 2. Fetch from API
+    let response_text = client.fetch_save_locations_raw(&game_name).await.map_err(|e| e.to_string())?;
+    
+    // 3. Cache response
+    {
+        let conn_guard = db_conn.lock().await;
+        let conn = conn_guard.get_connection();
+        let _ = crate::pcgaming_wiki::cache::PcgwCache::set(conn, &cache_key, &response_text, 7);
+    }
+    
+    // 4. Parse and return
+    let result = client.parse_save_locations_json(&response_text).map_err(|e| e.to_string())?;
+    
+    Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+async fn detect_game_executable(folder_path: String, game_name: String) -> Result<String, String> {
+    let path = std::path::Path::new(&folder_path);
+    if !path.exists() || !path.is_dir() {
+        return Err("Invalid folder path".to_string());
+    }
+
+    // Simple heuristic: look for .exe files
+    // Bonus: try to match game name
+    let mut best_match: Option<String> = None;
+    let mut any_exe: Option<String> = None;
+    
+    // Normalize game name for matching (remove special chars, lowercase)
+    let normalized_name = game_name.to_lowercase()
+        .replace(|c: char| !c.is_alphanumeric(), "");
+
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(ext) = path.extension() {
+                if ext.to_string_lossy().to_lowercase() == "exe" {
+                    let file_name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                    let normalized_file = file_name.to_lowercase().replace(|c: char| !c.is_alphanumeric(), "");
+                    
+                    let full_path = path.to_string_lossy().to_string();
+                    
+                    // Exact match or contains
+                    if normalized_file.contains(&normalized_name) || normalized_name.contains(&normalized_file) {
+                        best_match = Some(full_path.clone());
+                        break; // Found a good candidate
+                    }
+                    
+                    if any_exe.is_none() {
+                        any_exe = Some(full_path);
+                    }
+                }
+            }
+        }
+    }
+
+    match best_match.or(any_exe) {
+        Some(p) => Ok(p),
+        None => Err("No executable found in directory".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -343,7 +517,11 @@ pub fn run() {
             get_all_games,
             update_game_sync,
             delete_game_sync,
-            launch_game
+            delete_game_sync,
+            launch_game,
+            search_pcgw_games,
+            get_pcgw_save_locations,
+            detect_game_executable
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

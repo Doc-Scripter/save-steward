@@ -239,6 +239,32 @@ impl DatabaseSchema {
             [],
         )?;
 
+        // Create PCGamingWiki cache table
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS pcgw_cache (
+                query_key TEXT PRIMARY KEY,
+                response_json TEXT NOT NULL,
+                fetched_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+            "#,
+            [],
+        )?;
+
+        // Create game_pcgw_mapping table
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS game_pcgw_mapping (
+                game_id INTEGER PRIMARY KEY,
+                pcgw_page_name TEXT NOT NULL,
+                last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (game_id) REFERENCES games(id)
+            )
+            "#,
+            [],
+        )?;
+
         // Create indexes for performance
         Self::create_indexes(conn)?;
 

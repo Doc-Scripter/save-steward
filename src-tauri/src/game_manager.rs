@@ -2,6 +2,7 @@ use crate::database::{models::*};
 use std::path::Path;
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
+use crate::pcgaming_wiki::PcgwClient;
 
 pub struct GameManager;
 
@@ -11,17 +12,51 @@ impl GameManager {
         db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
         request: AddGameRequest,
     ) -> Result<GameWithSaves, String> {
+        // 1. Pre-fetch PCGamingWiki data (outside transaction)
+        let mut pcgw_save_locations: Option<Vec<SaveLocation>> = None;
+        let mut pcgw_response_text: Option<String> = None;
+        let cache_key = format!("save_loc:{}", request.name);
+        
+        // Check cache first
+        {
+            let conn_guard = db.lock().await;
+            let conn = conn_guard.get_connection();
+            if let Ok(Some(cached_json)) = crate::pcgaming_wiki::cache::PcgwCache::get(conn, &cache_key) {
+                 let client = PcgwClient::new();
+                 if let Ok(result) = client.parse_save_locations_json(&cached_json) {
+                     // Convert result to SaveLocation objects
+                     pcgw_save_locations = Some(Self::convert_pcgw_locations(&result));
+                 }
+            }
+        }
+        
+        // If not in cache, fetch from API
+        if pcgw_save_locations.is_none() {
+            let client = PcgwClient::new();
+            if let Ok(text) = client.fetch_save_locations_raw(&request.name).await {
+                pcgw_response_text = Some(text.clone());
+                if let Ok(result) = client.parse_save_locations_json(&text) {
+                     pcgw_save_locations = Some(Self::convert_pcgw_locations(&result));
+                }
+            }
+        }
+
         let conn_guard = db.lock().await;
         let mut conn = conn_guard.get_connection().await;
 
         // Start transaction
         let tx = conn.transaction().map_err(|e| format!("Transaction error: {}", e))?;
 
+        // Update cache if we fetched new data
+        if let Some(text) = pcgw_response_text {
+            let _ = crate::pcgaming_wiki::cache::PcgwCache::set(&tx, &cache_key, &text, 7);
+        }
+
         // Insert game
         let game_id = Self::insert_game(&tx, &request)?;
 
-        // Detect and insert save locations
-        let save_locations = Self::detect_save_locations(&tx, game_id, &request)?;
+        // Detect and insert save locations (passing pre-fetched data)
+        let save_locations = Self::detect_save_locations(&tx, game_id, &request, pcgw_save_locations)?;
 
         // Scan for existing saves
         let detected_saves = Self::scan_existing_saves(&tx, game_id, &save_locations)?;
@@ -62,12 +97,32 @@ impl GameManager {
 
     /// Detect save locations for a game
     fn detect_save_locations(
-        tx: &rusqlite::Transaction,
+        tx: &rusqlite::Transaction<'_>,
         game_id: i64,
         request: &AddGameRequest,
+        pcgw_locations: Option<Vec<SaveLocation>>,
     ) -> Result<Vec<SaveLocation>, String> {
         let mut locations = Vec::new();
-
+        // but our db is Arc<Mutex<EncryptedDatabase>>.
+        // We need to refactor PcgwClient or just use a fresh connection for it if possible, 
+        // or skip caching for this specific call if it's too complex.
+        
+        // Actually, PcgwClient::new takes Arc<Mutex<Connection>>. 
+        // Our EncryptedDatabase wraps Connection.
+        // For now, let's skip the API call inside this transaction to avoid deadlock/complexity 
+        // and rely on a separate update step or just use heuristics for now.
+        
+        // WAIT: We can't easily use PcgwClient here because of the transaction lock.
+        // The `add_manual_game` holds a lock on `db`.
+        // If `PcgwClient` tries to lock `db` again, it might deadlock if not careful (though reentrant mutex might work).
+        // But `EncryptedDatabase` is inside `tokio::sync::Mutex`.
+        
+        // Alternative: Fetch PCGW data BEFORE starting the transaction in `add_manual_game`.
+        
+        // Let's revert this change signature and do it in `add_manual_game`.
+        
+        // ... (keeping original implementation for now, will modify add_manual_game instead)
+        
         // Try manifest-based detection first
         if let Some(manifest_locations) = Self::detect_from_manifest(request)? {
             for loc in manifest_locations {
@@ -413,5 +468,53 @@ impl GameManager {
         tx.commit().map_err(|e| format!("Commit error: {}", e))?;
 
         Ok(())
+    }
+
+    fn convert_pcgw_locations(result: &crate::pcgaming_wiki::models::SaveLocationResult) -> Vec<SaveLocation> {
+        let mut locations = Vec::new();
+        
+        // Windows paths
+        for path in &result.windows {
+            locations.push(SaveLocation {
+                id: 0,
+                game_id: 0,
+                path_pattern: path.clone(),
+                path_type: "directory".to_string(),
+                platform: Some("windows".to_string()),
+                save_type: "auto".to_string(),
+                file_patterns: Some(r#"["*"]"#.to_string()), // Default to all files
+                exclude_patterns: None,
+                is_relative_to_user: false, // Paths are already resolved
+                environment_variable: None,
+                priority: 8,
+                detection_method: Some("pcgamingwiki".to_string()),
+                community_confirmed: true,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            });
+        }
+        
+        // Linux paths
+        for path in &result.linux {
+            locations.push(SaveLocation {
+                id: 0,
+                game_id: 0,
+                path_pattern: path.clone(),
+                path_type: "directory".to_string(),
+                platform: Some("linux".to_string()),
+                save_type: "auto".to_string(),
+                file_patterns: Some(r#"["*"]"#.to_string()),
+                exclude_patterns: None,
+                is_relative_to_user: false,
+                environment_variable: None,
+                priority: 8,
+                detection_method: Some("pcgamingwiki".to_string()),
+                community_confirmed: true,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            });
+        }
+        
+        locations
     }
 }

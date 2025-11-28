@@ -52,3 +52,4 @@ tempfile = "3.0"
 winapi = { version = "0.3", features = ["winuser", "processthreadsapi"] }
 git2 = "0.19"
 tokio-util = "0.7"
+url = "2.5"
