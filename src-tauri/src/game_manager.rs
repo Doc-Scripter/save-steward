@@ -39,17 +39,18 @@ impl GameManager {
     /// Insert game into database
     fn insert_game(tx: &rusqlite::Transaction, request: &AddGameRequest) -> Result<i64, String> {
         tx.execute(
-            "INSERT INTO games (name, developer, publisher, platform, platform_app_id,
-                              executable_path, installation_path, created_at, updated_at, is_active)
+            "INSERT INTO games (name, platform, platform_app_id,
+                              executable_path, installation_path, icon_base64, icon_path,
+                              created_at, updated_at, is_active)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rusqlite::params![
                 request.name,
-                request.developer,
-                request.publisher,
                 request.platform,
                 request.platform_app_id,
                 request.executable_path,
                 request.installation_path,
+                request.icon_base64,
+                request.icon_path,
                 Utc::now().to_rfc3339(),
                 Utc::now().to_rfc3339(),
                 true,
@@ -260,7 +261,7 @@ impl GameManager {
         let mut stmt = conn.prepare(
             "SELECT id, name, developer, publisher, platform, platform_app_id,
                     executable_path, installation_path, genre, release_date,
-                    cover_image_url, created_at, updated_at, is_active
+                    cover_image_url, icon_base64, icon_path, created_at, updated_at, is_active
              FROM games WHERE id = ?"
         ).map_err(|e| format!("Prepare statement error: {}", e))?;
 
@@ -277,12 +278,55 @@ impl GameManager {
                 genre: row.get(8)?,
                 release_date: row.get(9)?,
                 cover_image_url: row.get(10)?,
+                icon_base64: row.get(11)?,
+                icon_path: row.get(12)?,
                 created_at: Utc::now(), // TODO: Fix DateTime parsing
                 updated_at: Utc::now(), // TODO: Fix DateTime parsing
-                is_active: row.get(13)?,
+                is_active: row.get(15)?,
             })
         }).map_err(|e| format!("Query game error: {}", e))?;
 
         Ok(game)
+    }
+
+    /// Get all active games
+    pub async fn get_all_games(
+        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+    ) -> Result<Vec<Game>, String> {
+        let conn_guard = db.lock().await;
+        let conn = conn_guard.get_connection().await;
+
+        let mut stmt = conn.prepare(
+            "SELECT id, name, developer, publisher, platform, platform_app_id,
+                    executable_path, installation_path, genre, release_date,
+                    cover_image_url, icon_base64, icon_path, created_at, updated_at, is_active
+             FROM games WHERE is_active = TRUE ORDER BY name ASC"
+        ).map_err(|e| format!("Prepare statement error: {}", e))?;
+
+        let games = stmt.query_map([], |row| {
+            Ok(Game {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                developer: row.get(2)?,
+                publisher: row.get(3)?,
+                platform: row.get(4)?,
+                platform_app_id: row.get(5)?,
+                executable_path: row.get(6)?,
+                installation_path: row.get(7)?,
+                genre: row.get(8)?,
+                release_date: row.get(9)?,
+                cover_image_url: row.get(10)?,
+                icon_base64: row.get(11)?,
+                icon_path: row.get(12)?,
+                created_at: Utc::now(), // TODO: Fix DateTime parsing
+                updated_at: Utc::now(), // TODO: Fix DateTime parsing
+                is_active: row.get(15)?,
+            })
+        })
+        .map_err(|e| format!("Query games error: {}", e))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("Collect games error: {}", e))?;
+
+        Ok(games)
     }
 }

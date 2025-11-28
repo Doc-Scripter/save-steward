@@ -10,14 +10,16 @@ export interface GameData {
   branchCount: number;
   status: 'Active' | 'Syncing' | 'Offline' | 'Error' | 'Synced';
   bannerColor: string; // Placeholder for actual image
-  icon?: string;
+  icon?: string; // Base64 encoded icon
+  executablePath?: string; // Path to exe for launching
 }
 
 interface GameCardProps {
   game: GameData;
+  onLaunch?: () => void;
 }
 
-const GameCard: React.FC<GameCardProps> = ({ game }) => {
+const GameCard: React.FC<GameCardProps> = ({ game, onLaunch }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Active': return 'green';
@@ -42,7 +44,12 @@ const GameCard: React.FC<GameCardProps> = ({ game }) => {
 
   return (
     <div className="game-card-new">
-      <div className="game-banner" style={{ backgroundColor: game.bannerColor }}>
+      <div className="game-banner" style={{ 
+        backgroundColor: game.icon ? 'transparent' : game.bannerColor,
+        backgroundImage: game.icon ? `url(data:image/png;base64,${game.icon})` : 'none',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}>
         {/* In a real app, this would be an <img> tag */}
         <div className={`status-badge ${getStatusColor(game.status)}`}>
           {getStatusIcon(game.status)}
@@ -72,7 +79,7 @@ const GameCard: React.FC<GameCardProps> = ({ game }) => {
         </div>
 
         <div className="game-actions-row">
-          <button className="launch-btn"><Play size={14} style={{marginRight: 6, verticalAlign: 'middle'}}/> Launch</button>
+          <button className="launch-btn" onClick={onLaunch}><Play size={14} style={{marginRight: 6, verticalAlign: 'middle'}}/> Launch</button>
           <button className="icon-btn"><History size={16} /></button>
           <button className="icon-btn"><MoreHorizontal size={16} /></button>
         </div>

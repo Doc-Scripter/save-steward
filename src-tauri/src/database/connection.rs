@@ -108,7 +108,7 @@ impl EncryptedDatabase {
         conn.execute("PRAGMA cache_size=-64000;", [])?;   // 64MB cache
 
         // Verify connection is working
-        conn.execute("SELECT count(*) FROM sqlite_master;", [])?;
+        let _: i64 = conn.query_row("SELECT count(*) FROM sqlite_master;", [], |row| row.get(0))?;
 
         Ok(conn)
     }
@@ -160,7 +160,7 @@ impl EncryptedDatabase {
             OpenFlags::SQLITE_OPEN_READ_WRITE,
         )?;
 
-        conn.execute("SELECT count(*) FROM sqlite_master;", [])?;
+        let _: i64 = conn.query_row("SELECT count(*) FROM sqlite_master;", [], |row| row.get(0))?;
         Ok(())
     }
 

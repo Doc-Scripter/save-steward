@@ -16,13 +16,15 @@ impl DatabaseSchema {
                 name TEXT NOT NULL,
                 developer TEXT,
                 publisher TEXT,
-                platform TEXT NOT NULL, -- 'steam', 'epic', 'gog', 'standalone'
+                platform TEXT NOT NULL, -- 'steam', 'epic', 'gog', 'standalone', 'other'
                 platform_app_id TEXT,   -- Steam AppID, Epic Game ID, etc.
                 executable_path TEXT,
                 installation_path TEXT,
                 genre TEXT,
                 release_date DATE,
                 cover_image_url TEXT,
+                icon_base64 TEXT,       -- Base64 encoded game icon
+                icon_path TEXT,         -- Path to exe for icon extraction/update
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 is_active BOOLEAN DEFAULT TRUE
