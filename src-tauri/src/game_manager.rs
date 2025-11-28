@@ -55,6 +55,16 @@ impl GameManager {
         // Insert game
         let game_id = Self::insert_game(&tx, &request)?;
 
+        // Update game with PCGW data if available (including executables)
+        if pcgw_save_locations.is_some() {
+            // Fetch PCGW executables and update game record
+            if let Some(page_name) = Self::extract_pcgw_page_name(&request.name) {
+                if let Some(executables_json) = Self::fetch_pcgw_executables(&page_name) {
+                    Self::update_game_platform_executables(&tx, game_id, &executables_json)?;
+                }
+            }
+        }
+
         // Detect and insert save locations (passing pre-fetched data)
         let save_locations = Self::detect_save_locations(&tx, game_id, &request, pcgw_save_locations)?;
 
@@ -75,15 +85,16 @@ impl GameManager {
     fn insert_game(tx: &rusqlite::Transaction, request: &AddGameRequest) -> Result<i64, String> {
         tx.execute(
             "INSERT INTO games (name, platform, platform_app_id,
-                              executable_path, installation_path, icon_base64, icon_path,
-                              created_at, updated_at, is_active)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                              executable_path, installation_path, platform_executables,
+                              icon_base64, icon_path, created_at, updated_at, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rusqlite::params![
                 request.name,
                 request.platform,
                 request.platform_app_id,
                 request.executable_path,
                 request.installation_path,
+                request.platform_executables,
                 request.icon_base64,
                 request.icon_path,
                 Utc::now().to_rfc3339(),
@@ -322,15 +333,16 @@ impl GameManager {
     fn get_game_by_id(conn: &rusqlite::Connection, game_id: i64) -> Result<Game, String> {
         let mut stmt = conn.prepare(
             "SELECT id, name, developer, publisher, platform, platform_app_id,
-                    executable_path, installation_path, genre, release_date,
-                    cover_image_url, icon_base64, icon_path, created_at, updated_at, is_active
+                    executable_path, installation_path, platform_executables,
+                    genre, release_date, cover_image_url, icon_base64, icon_path,
+                    created_at, updated_at, is_active
              FROM games WHERE id = ?"
         ).map_err(|e| format!("Prepare statement error: {}", e))?;
 
         let game = stmt.query_row([game_id], |row| {
-            let created_at_str: String = row.get(13)?;
-            let updated_at_str: String = row.get(14)?;
-            
+            let created_at_str: String = row.get(14)?;
+            let updated_at_str: String = row.get(15)?;
+
             let created_at = Self::parse_timestamp(&created_at_str)
                 .unwrap_or_else(|_| Utc::now());
             let updated_at = Self::parse_timestamp(&updated_at_str)
@@ -345,14 +357,15 @@ impl GameManager {
                 platform_app_id: row.get(5)?,
                 executable_path: row.get(6)?,
                 installation_path: row.get(7)?,
-                genre: row.get(8)?,
-                release_date: row.get(9)?,
-                cover_image_url: row.get(10)?,
-                icon_base64: row.get(11)?,
-                icon_path: row.get(12)?,
+                platform_executables: row.get(8)?,
+                genre: row.get(9)?,
+                release_date: row.get(10)?,
+                cover_image_url: row.get(11)?,
+                icon_base64: row.get(12)?,
+                icon_path: row.get(13)?,
                 created_at,
                 updated_at,
-                is_active: row.get(15)?,
+                is_active: row.get(16)?,
             })
         }).map_err(|e| format!("Query game error: {}", e))?;
 
@@ -368,15 +381,16 @@ impl GameManager {
 
         let mut stmt = conn.prepare(
             "SELECT id, name, developer, publisher, platform, platform_app_id,
-                    executable_path, installation_path, genre, release_date,
-                    cover_image_url, icon_base64, icon_path, created_at, updated_at, is_active
+                    executable_path, installation_path, platform_executables,
+                    genre, release_date, cover_image_url, icon_base64, icon_path,
+                    created_at, updated_at, is_active
              FROM games WHERE is_active = TRUE ORDER BY name ASC"
         ).map_err(|e| format!("Prepare statement error: {}", e))?;
 
         let games = stmt.query_map([], |row| {
-            let created_at_str: String = row.get(13)?;
-            let updated_at_str: String = row.get(14)?;
-            
+            let created_at_str: String = row.get(14)?;
+            let updated_at_str: String = row.get(15)?;
+
             let created_at = Self::parse_timestamp(&created_at_str)
                 .unwrap_or_else(|_| Utc::now());
             let updated_at = Self::parse_timestamp(&updated_at_str)
@@ -391,14 +405,15 @@ impl GameManager {
                 platform_app_id: row.get(5)?,
                 executable_path: row.get(6)?,
                 installation_path: row.get(7)?,
-                genre: row.get(8)?,
-                release_date: row.get(9)?,
-                cover_image_url: row.get(10)?,
-                icon_base64: row.get(11)?,
-                icon_path: row.get(12)?,
+                platform_executables: row.get(8)?,
+                genre: row.get(9)?,
+                release_date: row.get(10)?,
+                cover_image_url: row.get(11)?,
+                icon_base64: row.get(12)?,
+                icon_path: row.get(13)?,
                 created_at,
                 updated_at,
-                is_active: row.get(15)?,
+                is_active: row.get(16)?,
             })
         })
         .map_err(|e| format!("Query games error: {}", e))?
@@ -503,9 +518,143 @@ impl GameManager {
         Ok(())
     }
 
+    /// Extract PCGW page name from game name (simplified - could be enhanced)
+    fn extract_pcgw_page_name(game_name: &str) -> Option<String> {
+        // Convert to PCGW page name format (spaces to underscores, clean special chars)
+        let clean_name = game_name.replace(|c: char| !c.is_alphanumeric() && c != ' ', "_");
+        Some(clean_name)
+    }
+
+    /// Fetch executables from PCGW wikitext
+    fn fetch_pcgw_executables(page_name: &str) -> Option<String> {
+        use std::process::Command;
+        use regex::Regex;
+
+        // Fetch wikitext using curl
+        let output = Command::new("curl")
+            .arg("-s")
+            .arg(format!("https://www.pcgamingwiki.com/w/api.php?action=parse&page={}&prop=wikitext&format=json", page_name))
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let json: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
+        let wikitext = json["parse"]["wikitext"]["*"].as_str()?;
+
+        // Parse executables from wikitext
+        let mut executables = std::collections::HashMap::new();
+
+        // Extract {{file|...}} templates
+        let file_regex = Regex::new(r"\{\{file\|([^}]+)\}\}").ok()?;
+        let mut file_matches: Vec<String> = file_regex.captures_iter(wikitext)
+            .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_lowercase()))
+            .collect();
+
+        // Filter for likely executable files
+        file_matches.retain(|file| {
+            file.ends_with(".exe") ||
+            file.ends_with(".sh") ||
+            file.ends_with(".bin") ||
+            file.ends_with(".run") ||
+            file.ends_with(".x86_64") ||
+            file.ends_with(".app") ||
+            !file.contains(".") // Files without extension (common on Linux)
+        });
+
+        // Check platform indicators in wikitext
+        let has_linux = wikitext.contains("Linux") || wikitext.contains("linux");
+        let has_windows = wikitext.contains("Windows") || wikitext.contains("windows");
+        let has_macos = wikitext.contains("OS X") || wikitext.contains("macOS") || wikitext.contains("Mac");
+
+        // Assign executables to platforms (simplified logic)
+        let mut unassigned_files = Vec::new();
+        for file in &file_matches {
+            if file.ends_with(".exe") {
+                executables.entry("windows".to_string()).or_insert_with(Vec::new).push(file.clone());
+            } else if file.ends_with(".app") {
+                executables.entry("macos".to_string()).or_insert_with(Vec::new).push(file.clone());
+            } else if file.ends_with(".sh") || file.contains("run") || has_linux {
+                executables.entry("linux".to_string()).or_insert_with(Vec::new).push(file.clone());
+            } else {
+                unassigned_files.push(file.clone());
+            }
+        }
+
+        // Fallback: if we found likely executables but couldn't assign platforms,
+        // assign to current platform
+        if executables.is_empty() && !file_matches.is_empty() {
+            #[cfg(target_os = "linux")]
+            executables.insert("linux".to_string(), file_matches);
+            #[cfg(target_os = "windows")]
+            executables.insert("windows".to_string(), file_matches);
+            #[cfg(target_os = "macos")]
+            executables.insert("macos".to_string(), file_matches);
+        } else if !unassigned_files.is_empty() {
+            // Assign unassigned generic executables to current platform
+            #[cfg(target_os = "linux")]
+            executables.entry("linux".to_string()).or_insert_with(Vec::new).extend(unassigned_files);
+            #[cfg(target_os = "windows")]
+            executables.entry("windows".to_string()).or_insert_with(Vec::new).extend(unassigned_files);
+            #[cfg(target_os = "macos")]
+            executables.entry("macos".to_string()).or_insert_with(Vec::new).extend(unassigned_files);
+        }
+
+        // Convert to JSON string
+        serde_json::to_string(&executables).ok()
+    }
+
+    /// Update game with platform executables
+    fn update_game_platform_executables(tx: &rusqlite::Transaction, game_id: i64, executables_json: &str) -> Result<(), String> {
+        tx.execute(
+            "UPDATE games SET platform_executables = ?, updated_at = ? WHERE id = ?",
+            rusqlite::params![
+                executables_json,
+                Utc::now().to_rfc3339(),
+                game_id,
+            ],
+        ).map_err(|e| format!("Update game executables error: {}", e))?;
+
+        Ok(())
+    }
+
+    /// Get current system platform string
+    pub fn get_current_platform() -> &'static str {
+        #[cfg(target_os = "linux")]
+        { "linux" }
+        #[cfg(target_os = "windows")]
+        { "windows" }
+        #[cfg(target_os = "macos")]
+        { "macos" }
+        #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+        { "unknown" }
+    }
+
+    /// Get executable path for current platform from stored data
+    pub fn get_platform_executable(game: &Game) -> Option<String> {
+        let platform = Self::get_current_platform();
+
+        if let Some(executables_json) = &game.platform_executables {
+            if let Ok(executables) = serde_json::from_str::<std::collections::HashMap<String, Vec<String>>>(executables_json) {
+                if let Some(platform_files) = executables.get(platform) {
+                    // Return first executable for this platform
+                    platform_files.first().cloned()
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     fn convert_pcgw_locations(result: &crate::pcgaming_wiki::models::SaveLocationResult) -> Vec<SaveLocation> {
         let mut locations = Vec::new();
-        
+
         // Windows paths
         for path in &result.windows {
             locations.push(SaveLocation {
@@ -526,7 +675,7 @@ impl GameManager {
                 updated_at: Utc::now(),
             });
         }
-        
+
         // Linux paths
         for path in &result.linux {
             locations.push(SaveLocation {
@@ -547,7 +696,7 @@ impl GameManager {
                 updated_at: Utc::now(),
             });
         }
-        
+
         locations
     }
 }

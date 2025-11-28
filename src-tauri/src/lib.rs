@@ -433,45 +433,150 @@ async fn get_pcgw_save_locations(game_name: String) -> Result<serde_json::Value,
 
 #[tauri::command]
 async fn detect_game_executable(folder_path: String, game_name: String) -> Result<String, String> {
-    let path = std::path::Path::new(&folder_path);
-    if !path.exists() || !path.is_dir() {
-        return Err("Invalid folder path".to_string());
-    }
+    // First try to find stored executable data
+    let db_path = crate::database::connection::DatabasePaths::database_file();
+    if let Ok(db) = crate::database::connection::EncryptedDatabase::new(&db_path, "default_password").await {
+        let db_conn = std::sync::Arc::new(tokio::sync::Mutex::new(db));
 
-    // Simple heuristic: look for .exe files
-    // Bonus: try to match game name
-    let mut best_match: Option<String> = None;
-    let mut any_exe: Option<String> = None;
-    
-    // Normalize game name for matching (remove special chars, lowercase)
-    let normalized_name = game_name.to_lowercase()
-        .replace(|c: char| !c.is_alphanumeric(), "");
+        // Get all games and find one that matches
+        if let Ok(games) = crate::game_manager::GameManager::get_all_games(&db_conn).await {
+            // Try exact name match first, then partial match
+            let matching_game = games.iter()
+                .find(|g| g.name.to_lowercase() == game_name.to_lowercase())
+                .or_else(|| {
+                    let normalized_search = game_name.to_lowercase()
+                        .replace(|c: char| !c.is_alphanumeric(), "");
+                    games.iter().find(|g| {
+                        let normalized_game = g.name.to_lowercase()
+                            .replace(|c: char| !c.is_alphanumeric(), "");
+                        normalized_game.contains(&normalized_search) || normalized_search.contains(&normalized_game)
+                    })
+                });
 
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if let Some(ext) = path.extension() {
-                if ext.to_string_lossy().to_lowercase() == "exe" {
-                    let file_name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
-                    let normalized_file = file_name.to_lowercase().replace(|c: char| !c.is_alphanumeric(), "");
-                    
-                    let full_path = path.to_string_lossy().to_string();
-                    
-                    // Exact match or contains
-                    if normalized_file.contains(&normalized_name) || normalized_name.contains(&normalized_file) {
-                        best_match = Some(full_path.clone());
-                        break; // Found a good candidate
+            if let Some(game) = matching_game {
+                // Try to get platform-specific executable first
+                if let Some(platform_exe) = crate::game_manager::GameManager::get_platform_executable(game) {
+                    // Combine with installation path if available
+                    let base_path = if let Some(install_path) = &game.installation_path {
+                        std::path::Path::new(install_path)
+                    } else {
+                        std::path::Path::new(&folder_path)
+                    };
+
+                    let exe_path = base_path.join(platform_exe);
+                    if exe_path.exists() {
+                        return Ok(exe_path.to_string_lossy().to_string());
                     }
-                    
-                    if any_exe.is_none() {
-                        any_exe = Some(full_path);
+                }
+
+                // Fallback to legacy executable_path
+                if let Some(legacy_exe) = &game.executable_path {
+                    if !legacy_exe.is_empty() {
+                        let exe_path = std::path::Path::new(legacy_exe);
+                        if exe_path.exists() {
+                            return Ok(legacy_exe.clone());
+                        } else {
+                            // Try relative to folder_path
+                            let relative_path = std::path::Path::new(&folder_path).join(legacy_exe);
+                            if relative_path.exists() {
+                                return Ok(relative_path.to_string_lossy().to_string());
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
-    match best_match.or(any_exe) {
+    // Fallback: directory scanning with OS-aware logic
+    detect_executable_in_directory(&folder_path, &game_name)
+}
+
+fn detect_executable_in_directory(folder_path: &str, game_name: &str) -> Result<String, String> {
+    use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
+    use std::fs;
+
+    let path = std::path::Path::new(folder_path);
+    if !path.exists() || !path.is_dir() {
+        return Err("Invalid folder path".to_string());
+    }
+
+    let mut best_match: Option<String> = None;
+    let mut any_executable: Option<String> = None;
+
+    // Normalize game name for matching
+    let normalized_name = game_name.to_lowercase()
+        .replace(|c: char| !c.is_alphanumeric(), "");
+
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            let file_name = entry_path.file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+
+            let is_executable = {
+                #[cfg(target_os = "windows")]
+                {
+                    // On Windows, check for .exe extension
+                    entry_path.extension()
+                        .map(|ext| ext.to_string_lossy().to_lowercase() == "exe")
+                        .unwrap_or(false)
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    // On Unix-like systems, check file permissions
+                    if let Ok(metadata) = entry_path.metadata() {
+                        let permissions = metadata.permissions();
+                        permissions.mode() & 0o111 != 0 // Check if any execute bit is set
+                    } else {
+                        false
+                    }
+                }
+            };
+
+            if is_executable {
+                let full_path = entry_path.to_string_lossy().to_string();
+                let normalized_file = file_name.to_lowercase()
+                    .replace(|c: char| !c.is_alphanumeric(), "");
+
+                // Check for game name match (higher priority)
+                if normalized_file.contains(&normalized_name) || normalized_name.contains(&normalized_file) {
+                    best_match = Some(full_path.clone());
+                    break; // Found a good match
+                }
+
+                // Also check common executable patterns
+                let is_common_exe = {
+                    #[cfg(target_os = "windows")]
+                    {
+                        file_name.to_lowercase().ends_with(".exe") ||
+                        file_name.to_lowercase().ends_with(".bat") ||
+                        file_name.to_lowercase().ends_with(".cmd")
+                    }
+                    #[cfg(not(target_os = "windows"))]
+                    {
+                        file_name.to_lowercase().ends_with(".sh") ||
+                        file_name.to_lowercase().ends_with(".bin") ||
+                        file_name.to_lowercase().ends_with(".run") ||
+                        file_name.to_lowercase().ends_with(".x86_64") ||
+                        file_name == "run" ||
+                        file_name.starts_with("start") ||
+                        file_name.starts_with("launch") ||
+                        !file_name.contains(".") // Files without extension are often executables on Linux
+                    }
+                };
+
+                if is_common_exe && any_executable.is_none() {
+                    any_executable = Some(full_path);
+                }
+            }
+        }
+    }
+
+    match best_match.or(any_executable) {
         Some(p) => Ok(p),
         None => Err("No executable found in directory".to_string())
     }

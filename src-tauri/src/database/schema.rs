@@ -17,8 +17,9 @@ impl DatabaseSchema {
                 publisher TEXT,
                 platform TEXT NOT NULL, -- 'steam', 'epic', 'gog', 'standalone', 'other'
                 platform_app_id TEXT,   -- Steam AppID, Epic Game ID, etc.
-                executable_path TEXT,
+                executable_path TEXT,   -- Legacy single executable path
                 installation_path TEXT,
+                platform_executables TEXT, -- JSON: {"linux": "run.sh", "windows": "Game.exe", "macos": "Game.app"}
                 genre TEXT,
                 release_date DATE,
                 cover_image_url TEXT,

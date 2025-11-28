@@ -9,8 +9,9 @@ pub struct Game {
     pub publisher: Option<String>,
     pub platform: String, // steam, epic, gog, standalone, other
     pub platform_app_id: Option<String>,
-    pub executable_path: Option<String>,
+    pub executable_path: Option<String>, // Legacy single executable path
     pub installation_path: Option<String>,
+    pub platform_executables: Option<String>, // JSON: {"linux": "run.sh", "windows": "Game.exe", "macos": "Game.app"}
     pub genre: Option<String>,
     pub release_date: Option<String>,
     pub cover_image_url: Option<String>,
@@ -135,6 +136,7 @@ pub struct AddGameRequest {
     pub platform_app_id: Option<String>,
     pub executable_path: Option<String>,
     pub installation_path: Option<String>,
+    pub platform_executables: Option<String>, // JSON: {"linux": "run.sh", "windows": "Game.exe", "macos": "Game.app"}
     pub icon_base64: Option<String>, // Base64 encoded icon
     pub icon_path: Option<String>, // Original exe path for icon extraction
 }
