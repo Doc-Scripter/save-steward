@@ -49,10 +49,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
       const selected = await open({
         multiple: false,
         directory: false,
-        filters: [{
-          name: "Executable",
-          extensions: ["exe"]
-        }]
+        // No filters - allow all file types including binaries without extensions
       });
       
       console.log("Dialog result:", selected);
@@ -62,7 +59,8 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
         handleInputChange("executable_path", selected);
         // Auto-fill installation path if empty
         if (!formData.installation_path) {
-          const installPath = selected.substring(0, selected.lastIndexOf("\\"));
+          const separator = selected.includes("\\") ? "\\" : "/";
+          const installPath = selected.substring(0, selected.lastIndexOf(separator));
           handleInputChange("installation_path", installPath);
         }
       } else {
