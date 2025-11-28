@@ -408,10 +408,11 @@ async fn search_pcgw_games(query: String) -> Result<serde_json::Value, String> {
     let results: Vec<crate::pcgaming_wiki::models::GameSearchResult> = response.cargoquery.into_iter().map(|item| {
             let info = item.title;
             crate::pcgaming_wiki::models::GameSearchResult {
-                name: info.page_name,
+                // Use search query as name since _pageName not in response
+                name: query.clone(),
                 steam_id: info.steam_appid,
-                developers: info.developers,
                 publishers: info.publishers,
+                cover_image_url: None, // Will be populated separately via wikitext
             }
     }).collect();
     
