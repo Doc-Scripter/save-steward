@@ -276,21 +276,21 @@ impl CloudSyncManager {
     async fn add_remote_to_repo(&self, game_id: i64, remote_url: &str, remote_name: &str) -> Result<()> {
         // This would use git commands to add remote
         // For now, just log the operation
-        tracing::info!("Adding remote {} to repository for game {}", remote_name, game_id);
+        println!("Adding remote {} to repository for game {}", remote_name, game_id);
         Ok(())
     }
 
     async fn push_repository(&self, game_id: i64, remote_name: &str, branch: &str) -> Result<()> {
         // This would use git commands to push
         // For now, just log the operation
-        tracing::info!("Pushing repository for game {} to {}/{}", game_id, remote_name, branch);
+        println!("Pushing repository for game {} to {}/{}", game_id, remote_name, branch);
         Ok(())
     }
 
     async fn pull_repository(&self, game_id: i64, remote_name: &str, branch: &str) -> Result<()> {
         // This would use git commands to pull
         // For now, just log the operation
-        tracing::info!("Pulling repository for game {} from {}/{}", game_id, remote_name, branch);
+        println!("Pulling repository for game {} from {}/{}", game_id, remote_name, branch);
         Ok(())
     }
 
@@ -322,7 +322,7 @@ impl CloudSyncManager {
     async fn store_cloud_credentials(&self, game_id: i64, provider: &CloudProvider, credentials: &CloudCredentials) -> Result<()> {
         // This should store credentials securely (encrypted)
         // For now, just log
-        tracing::info!("Storing cloud credentials for game {} on {:?}", game_id, provider);
+        println!("Storing cloud credentials for game {} on {:?}", game_id, provider);
         Ok(())
     }
 }
@@ -401,7 +401,7 @@ impl GitLabClient {
 
         let response = self.client
             .post(&format!("{}/projects", self.base_url))
-            .header(header::PRIVATE_TOKEN, self.token.as_ref().unwrap_or(&"".to_string()))
+            .header(header::AUTHORIZATION, format!("Bearer {}", self.token.as_ref().unwrap_or(&"".to_string())))
             .json(&project_data)
             .send()
             .await?;

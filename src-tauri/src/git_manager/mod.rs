@@ -3,6 +3,9 @@
 //! This module provides version control capabilities for game saves using Git,
 //! enabling session-based branching with the pattern: gamename+save-name
 
+pub mod types;
+pub mod cloud;
+
 use crate::database::connection::{EncryptedDatabase, DatabasePaths};
 use std::path::Path;
 use git2::Repository;
