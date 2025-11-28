@@ -98,10 +98,25 @@ async fn get_all_games() -> Result<serde_json::Value, String> {
 async fn launch_game(executable_path: String) -> Result<String, String> {
     use std::process::Command;
     
-    // Launch the game executable
-    Command::new(&executable_path)
-        .spawn()
-        .map_err(|e| format!("Failed to launch game: {}", e))?;
+    // Determine the platform and launch accordingly
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: Direct execution
+        Command::new(&executable_path)
+            .spawn()
+            .map_err(|e| format!("Failed to launch game: {}", e))?;
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Linux/Unix: Use sh -c to handle binaries properly
+        // This ensures the executable bit is respected and environment is set up
+        Command::new("sh")
+            .arg("-c")
+            .arg(&executable_path)
+            .spawn()
+            .map_err(|e| format!("Failed to launch game: {}. Make sure the file has executable permissions (chmod +x)", e))?;
+    }
     
     Ok(format!("Launched: {}", executable_path))
 }
