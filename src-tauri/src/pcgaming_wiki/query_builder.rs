@@ -15,7 +15,9 @@ impl QueryBuilder {
         url.query_pairs_mut()
             .append_pair("action", "cargoquery")
             .append_pair("tables", "Infobox_game")
-            .append_pair("fields", "_pageName,Steam_AppID,Developers,Publishers")
+            // Removed _pageName from fields - API doesn't allow it
+            // Removed Developers and Modes - not needed
+            .append_pair("fields", "Steam_AppID,Publishers,Released,Genres")
             .append_pair("where", &where_clause)
             .append_pair("limit", &limit.to_string())
             .append_pair("format", "json");
@@ -33,6 +35,18 @@ impl QueryBuilder {
             .append_pair("tables", "Save_game_data")
             .append_pair("fields", "_pageName,Windows,Linux,macOS,Steam_Play")
             .append_pair("where", &where_clause)
+            .append_pair("format", "json");
+
+        Ok(url.to_string())
+    }
+
+    pub fn build_wikitext_query(page_name: &str) -> Result<String, url::ParseError> {
+        let mut url = Url::parse(BASE_URL)?;
+        
+        url.query_pairs_mut()
+            .append_pair("action", "parse")
+            .append_pair("page", page_name)
+            .append_pair("prop", "wikitext")
             .append_pair("format", "json");
 
         Ok(url.to_string())

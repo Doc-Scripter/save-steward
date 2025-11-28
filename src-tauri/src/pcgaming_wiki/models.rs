@@ -2,18 +2,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PcgwGameInfo {
-    #[serde(rename = "_pageName")]
-    pub page_name: String,
-    #[serde(rename = "Steam_AppID")]
+    #[serde(rename = "Steam AppID")]
     pub steam_appid: Option<String>,
-    #[serde(rename = "GOGCOM_ID")]
-    pub gog_id: Option<String>,
-    #[serde(rename = "Epic_Games_Launcher_ID")]
-    pub epic_id: Option<String>,
-    #[serde(rename = "Developers")]
-    pub developers: Option<String>,
     #[serde(rename = "Publishers")]
     pub publishers: Option<String>,
+    #[serde(rename = "Released")]
+    pub released: Option<String>,
+    #[serde(rename = "Genres")]
+    pub genres: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -44,8 +40,8 @@ pub struct CargoQueryResult<T> {
 pub struct GameSearchResult {
     pub name: String,
     pub steam_id: Option<String>,
-    pub developers: Option<String>,
     pub publishers: Option<String>,
+    pub cover_image_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

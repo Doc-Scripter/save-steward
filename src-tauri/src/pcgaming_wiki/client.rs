@@ -108,10 +108,12 @@ impl PcgwClient {
         response.cargoquery.into_iter().map(|item| {
             let info = item.title;
             GameSearchResult {
-                name: info.page_name,
+                // Use a placeholder name since _pageName is not in response
+                // This should be populated from the search context or wikitext
+                name: "Unknown".to_string(),
                 steam_id: info.steam_appid,
-                developers: info.developers,
                 publishers: info.publishers,
+                cover_image_url: None, // Will be populated via wikitext parsing
             }
         }).collect()
     }
