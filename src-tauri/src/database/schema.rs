@@ -27,7 +27,7 @@ impl DatabaseSchema {
                 icon_path TEXT,         -- Path to exe for icon extraction/update
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_active BOOLEAN DEFAULT TRUE
+                is_active INTEGER DEFAULT 1
             )
             "#,
             [],
@@ -45,11 +45,11 @@ impl DatabaseSchema {
                 save_type TEXT DEFAULT 'auto',         -- 'auto', 'manual', 'cloud'
                 file_patterns TEXT,                    -- JSON array of file patterns to monitor
                 exclude_patterns TEXT,                 -- JSON array of patterns to exclude
-                is_relative_to_user BOOLEAN DEFAULT TRUE,
+                is_relative_to_user INTEGER DEFAULT 1,
                 environment_variable TEXT,            -- %APPDATA%, %LOCALAPPDATA%, etc.
                 priority INTEGER DEFAULT 1,             -- Detection priority (1-10)
                 detection_method TEXT,                -- 'heuristic', 'api', 'manual', 'community'
-                community_confirmed BOOLEAN DEFAULT FALSE,
+                community_confirmed INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (game_id) REFERENCES games(id)
@@ -71,7 +71,7 @@ impl DatabaseSchema {
                 last_modified TIMESTAMP,
                 first_detected TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_active BOOLEAN DEFAULT TRUE,
+                is_active INTEGER DEFAULT 1,
                 metadata_json TEXT,                    -- JSON blob for game-specific metadata
                 FOREIGN KEY (game_id) REFERENCES games(id),
                 FOREIGN KEY (save_location_id) REFERENCES save_locations(id)
@@ -128,8 +128,8 @@ impl DatabaseSchema {
                 custom_name TEXT,
                 custom_install_path TEXT,
                 custom_save_path TEXT,
-                is_favorite BOOLEAN DEFAULT FALSE,
-                backup_enabled BOOLEAN DEFAULT TRUE,
+                is_favorite INTEGER DEFAULT 0,
+                backup_enabled INTEGER DEFAULT 1,
                 auto_backup_interval INTEGER DEFAULT 3600, -- seconds
                 max_versions INTEGER DEFAULT 10,
                 compression_level INTEGER DEFAULT 3,      -- 1-22 for zstd

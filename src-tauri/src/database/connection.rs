@@ -101,11 +101,11 @@ impl EncryptedDatabase {
         )?;
 
         // Basic SQLite optimizations
-        conn.execute("PRAGMA journal_mode=WAL;", [])?;
-        conn.execute("PRAGMA synchronous=NORMAL;", [])?;
-        conn.execute("PRAGMA temp_store=memory;", [])?;
-        conn.execute("PRAGMA mmap_size=268435456;", [])?; // 256MB
-        conn.execute("PRAGMA cache_size=-64000;", [])?;   // 64MB cache
+        let _: rusqlite::Result<String> = conn.query_row("PRAGMA journal_mode=WAL;", [], |_| Ok(String::new()));
+        let _: rusqlite::Result<String> = conn.query_row("PRAGMA synchronous=NORMAL;", [], |_| Ok(String::new()));
+        let _: rusqlite::Result<String> = conn.query_row("PRAGMA temp_store=memory;", [], |_| Ok(String::new()));
+        let _: rusqlite::Result<i64> = conn.query_row("PRAGMA mmap_size=268435456;", [], |_| Ok(0));
+        let _: rusqlite::Result<i64> = conn.query_row("PRAGMA cache_size=-64000;", [], |_| Ok(0));
 
         // Verify connection is working
         let _: i64 = conn.query_row("SELECT count(*) FROM sqlite_master;", [], |row| row.get(0))?;

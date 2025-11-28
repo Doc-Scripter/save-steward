@@ -1,7 +1,7 @@
-use crate::database::{DatabaseConnection, models::*};
+use crate::database::{models::*};
 use std::path::Path;
 use std::sync::Arc;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 
 pub struct GameManager;
 
@@ -256,6 +256,13 @@ impl GameManager {
         Ok(tx.last_insert_rowid())
     }
 
+    /// Parse timestamp string from database to DateTime
+    fn parse_timestamp(timestamp_str: &str) -> Result<DateTime<Utc>, String> {
+        DateTime::parse_from_rfc3339(timestamp_str)
+            .map(|dt| dt.with_timezone(&Utc))
+            .map_err(|e| format!("Failed to parse timestamp '{}': {}", timestamp_str, e))
+    }
+
     /// Get game by ID
     fn get_game_by_id(conn: &rusqlite::Connection, game_id: i64) -> Result<Game, String> {
         let mut stmt = conn.prepare(
@@ -266,6 +273,14 @@ impl GameManager {
         ).map_err(|e| format!("Prepare statement error: {}", e))?;
 
         let game = stmt.query_row([game_id], |row| {
+            let created_at_str: String = row.get(13)?;
+            let updated_at_str: String = row.get(14)?;
+            
+            let created_at = Self::parse_timestamp(&created_at_str)
+                .unwrap_or_else(|_| Utc::now());
+            let updated_at = Self::parse_timestamp(&updated_at_str)
+                .unwrap_or_else(|_| Utc::now());
+
             Ok(Game {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -280,8 +295,8 @@ impl GameManager {
                 cover_image_url: row.get(10)?,
                 icon_base64: row.get(11)?,
                 icon_path: row.get(12)?,
-                created_at: Utc::now(), // TODO: Fix DateTime parsing
-                updated_at: Utc::now(), // TODO: Fix DateTime parsing
+                created_at,
+                updated_at,
                 is_active: row.get(15)?,
             })
         }).map_err(|e| format!("Query game error: {}", e))?;
@@ -291,7 +306,7 @@ impl GameManager {
 
     /// Get all active games
     pub async fn get_all_games(
-        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        db: &std::sync::Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
     ) -> Result<Vec<Game>, String> {
         let conn_guard = db.lock().await;
         let conn = conn_guard.get_connection().await;
@@ -304,6 +319,14 @@ impl GameManager {
         ).map_err(|e| format!("Prepare statement error: {}", e))?;
 
         let games = stmt.query_map([], |row| {
+            let created_at_str: String = row.get(13)?;
+            let updated_at_str: String = row.get(14)?;
+            
+            let created_at = Self::parse_timestamp(&created_at_str)
+                .unwrap_or_else(|_| Utc::now());
+            let updated_at = Self::parse_timestamp(&updated_at_str)
+                .unwrap_or_else(|_| Utc::now());
+
             Ok(Game {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -318,8 +341,8 @@ impl GameManager {
                 cover_image_url: row.get(10)?,
                 icon_base64: row.get(11)?,
                 icon_path: row.get(12)?,
-                created_at: Utc::now(), // TODO: Fix DateTime parsing
-                updated_at: Utc::now(), // TODO: Fix DateTime parsing
+                created_at,
+                updated_at,
                 is_active: row.get(15)?,
             })
         })
