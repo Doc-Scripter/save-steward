@@ -350,47 +350,45 @@ CREATE TABLE IF NOT EXISTS game_pcgw_mapping (
 
 ## Integration Flow
 
-### Workflow: Add Game with Auto-Detection
+### User Workflow: Assisted Game Addition
 
-```
-1. User adds game manually
-   ↓
-2. Extract game metadata (name, Steam ID, etc.)
-   ↓
-3. Query PCGamingWiki API
-   ├─ Try by Steam App ID (if available)
-   ├─ Fallback to game name search
-   └─ Fuzzy match if exact match fails
-   ↓
-4. Parse save location data
-   ├─ Resolve path templates
-   ├─ Extract file patterns
-   └─ Determine platform-specific paths
-   ↓
-5. Store in database
-   ├─ Insert into save_locations table
-   ├─ Cache PCGamingWiki data
-   └─ Create game-to-PCGW mapping
-   ↓
-6. Scan for existing saves
-   └─ Use detected paths to find actual save files
-```
+This workflow balances automation with user control, as requested:
+
+1.  **Search & Select**
+    *   User types game name (e.g., "Witcher 3").
+    *   App queries PCGamingWiki `Infobox_game` table.
+    *   User selects the correct game from the list.
+
+2.  **Locate Installation**
+    *   User selects the game's **Installation Directory** on their disk.
+    *   *Why?* This solves the hardest problem of finding where the game is installed, which varies wildly by store (Steam, Epic, GOG, manual).
+
+3.  **Auto-Configuration (The "Magic" Step)**
+    *   **Executable Detection**: App scans the selected folder for executables (`.exe`, binaries).
+        *   *Heuristic*: Match filename to game name (e.g., `witcher3.exe`).
+        *  Or use wiki api to identif the filename of the game file
+    *   **Save Location Detection**: App queries PCGamingWiki `Save_game_data` table.
+        *   App resolves path templates (e.g., `{{p|userprofile}}` -> `C:\Users\Name`).
+        *   App checks if the resolved path exists.
+
+4.  **Confirmation**
+    *   App presents the "Add Game" modal pre-filled with:
+        *   Name (from API)
+        *   Icon (from API/Exe)
+        *   Executable Path (Found in folder)
+        *   Save Path (Resolved from API)
+    *   User clicks "Save".
 
 ### Example API Queries
 
-**Query 1: Get save locations by game name**
+**Query 1: Search games by name**
+```
+https://www.pcgamingwiki.com/w/api.php?action=cargoquery&tables=Infobox_game&fields=_pageName,Steam_AppID,Developers,Publishers&where=_pageName LIKE "%Witcher%"&limit=10&format=json
+```
+
+**Query 2: Get save locations (once game is selected)**
 ```
 https://www.pcgamingwiki.com/w/api.php?action=cargoquery&tables=Save_game_data&fields=_pageName,Windows,Linux,macOS,Steam_Play&where=_pageName="The Witcher 3: Wild Hunt"&format=json
-```
-
-**Query 2: Get game info by Steam App ID**
-```
-https://www.pcgamingwiki.com/w/api.php?action=cargoquery&tables=Infobox_game&fields=_pageName,Steam_AppID,Developers,Publishers&where=Steam_AppID="292030"&format=json
-```
-
-**Query 3: Get cloud save support**
-```
-https://www.pcgamingwiki.com/w/api.php?action=cargoquery&tables=Cloud&fields=_pageName,Steam_Cloud,GOG_Galaxy,Epic_Games_Launcher&where=_pageName="The Witcher 3: Wild Hunt"&format=json
 ```
 
 ---
