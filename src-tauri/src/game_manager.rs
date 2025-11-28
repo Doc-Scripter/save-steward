@@ -352,4 +352,36 @@ impl GameManager {
 
         Ok(games)
     }
+
+    /// Update an existing game
+    pub async fn update_game(
+        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        game_id: i64,
+        request: AddGameRequest,
+    ) -> Result<Game, String> {
+        let conn_guard = db.lock().await;
+        let mut conn = conn_guard.get_connection().await;
+
+        // Update the game
+        conn.execute(
+            "UPDATE games SET name = ?, platform = ?, platform_app_id = ?,
+                            executable_path = ?, installation_path = ?, 
+                            icon_base64 = ?, icon_path = ?, updated_at = ?
+             WHERE id = ?",
+            rusqlite::params![
+                request.name,
+                request.platform,
+                request.platform_app_id,
+                request.executable_path,
+                request.installation_path,
+                request.icon_base64,
+                request.icon_path,
+                Utc::now().to_rfc3339(),
+                game_id,
+            ],
+        ).map_err(|e| format!("Update game error: {}", e))?;
+
+        // Return the updated game
+        Self::get_game_by_id(&conn, game_id)
+    }
 }

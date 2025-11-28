@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
@@ -6,6 +6,14 @@ interface AddGameModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGameAdded: () => void;
+  editGame?: {
+    id: number;
+    name: string;
+    platform: string;
+    platform_app_id?: string;
+    executable_path?: string;
+    installation_path?: string;
+  };
 }
 
 interface GameFormData {
@@ -26,7 +34,7 @@ const PLATFORMS = [
   { value: "other", label: "Other" },
 ];
 
-function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
+function AddGameModal({ isOpen, onClose, onGameAdded, editGame }: AddGameModalProps) {
   const [formData, setFormData] = useState<GameFormData>({
     name: "",
     platform: "steam",
@@ -36,6 +44,27 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Update form when editGame changes
+  useEffect(() => {
+    if (editGame) {
+      setFormData({
+        name: editGame.name,
+        platform: editGame.platform,
+        platform_app_id: editGame.platform_app_id || "",
+        executable_path: editGame.executable_path || "",
+        installation_path: editGame.installation_path || "",
+      });
+    } else {
+      setFormData({
+        name: "",
+        platform: "steam",
+        platform_app_id: "",
+        executable_path: "",
+        installation_path: "",
+      });
+    }
+  }, [editGame]);
 
   const handleInputChange = (field: keyof GameFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -56,6 +85,25 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
       
       if (selected && typeof selected === "string") {
         console.log("Selected file:", selected);
+        
+        // Warn if user selected a library file instead of an executable
+        const fileName = selected.toLowerCase();
+        if (fileName.endsWith('.so') || fileName.endsWith('.dll') || fileName.endsWith('.dylib')) {
+          const shouldContinue = confirm(
+            `Warning: You selected a library file (${selected.split('/').pop()}).\n\n` +
+            `This is likely NOT the game executable. Library files (.so, .dll) are dependencies, not launchers.\n\n` +
+            `For Linux games, look for:\n` +
+            `- A file with the game name (no extension)\n` +
+            `- A .sh script (run.sh, start.sh, etc.)\n` +
+            `- An executable in the game's root directory\n\n` +
+            `Do you want to continue with this file anyway?`
+          );
+          
+          if (!shouldContinue) {
+            return;
+          }
+        }
+        
         handleInputChange("executable_path", selected);
         // Auto-fill installation path if empty
         if (!formData.installation_path) {
@@ -104,13 +152,19 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
         icon_path: formData.executable_path.trim() || null,
       };
 
-      await invoke("add_manual_game_sync", { request: requestData });
+      if (editGame) {
+        // Update existing game
+        await invoke("update_game_sync", { gameId: editGame.id, request: requestData });
+      } else {
+        // Add new game
+        await invoke("add_manual_game_sync", { request: requestData });
+      }
 
       onGameAdded();
       handleClose();
     } catch (err) {
-      console.error("Failed to add game:", err);
-      setError(err instanceof Error ? err.message : "Failed to add game");
+      console.error(editGame ? "Failed to update game:" : "Failed to add game:", err);
+      setError(err instanceof Error ? err.message : (editGame ? "Failed to update game" : "Failed to add game"));
     } finally {
       setIsSubmitting(false);
     }
@@ -134,7 +188,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
     <div className="modal-overlay">
       <div className="modal-content">
         <div className="modal-header">
-          <h2>Add New Game</h2>
+          <h2>{editGame ? "Edit Game" : "Add New Game"}</h2>
           <button onClick={handleClose} className="close-button">×</button>
         </div>
 
@@ -229,7 +283,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded }: AddGameModalProps) {
               Cancel
             </button>
             <button type="submit" disabled={isSubmitting} className="submit-button">
-              {isSubmitting ? "Adding Game..." : "Add Game"}
+              {isSubmitting ? (editGame ? "Updating..." : "Adding Game...") : (editGame ? "Update Game" : "Add Game")}
             </button>
           </div>
         </form>

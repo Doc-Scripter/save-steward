@@ -10,6 +10,7 @@ import AddGameModal from "./AddGameModal";
 function App() {
   const [activeView, setActiveView] = useState('games');
   const [isAddGameModalOpen, setIsAddGameModalOpen] = useState(false);
+  const [editingGame, setEditingGame] = useState<GameData | null>(null);
   const [games, setGames] = useState<GameData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -31,6 +32,8 @@ function App() {
         bannerColor: "#4a148c", // Default color
         icon: game.icon_base64 || undefined,
         executablePath: game.executable_path || undefined,
+        platform: game.platform || "steam",
+        installation_path: game.installation_path || undefined,
       }));
       
       setGames(transformedGames);
@@ -46,7 +49,7 @@ function App() {
     fetchGames();
   }, []);
 
-  // Handle game launch
+  // Handle game launch with enhanced support for Unity games
   const handleLaunchGame = async (game: GameData) => {
     if (!game.executablePath) {
       console.error("No executable path for game:", game.name);
@@ -54,16 +57,59 @@ function App() {
     }
 
     try {
-      await invoke("launch_game", { executablePath: game.executablePath });
+      console.log(`Launching game: ${game.name} (${game.executablePath})`);
+      
+      // The backend now handles finding the best launcher and setting up the environment
+      const result = await invoke("launch_game", { 
+        executablePath: game.executablePath,
+        installationPath: game.installation_path || ""
+      });
+      
+      console.log("Launch result:", result);
       console.log("Launched game:", game.name);
     } catch (error) {
-      console.error("Failed to launch game:", error);
+      console.error("Failed to launch game:", game.name, error);
+      
+      // Show user-friendly error message
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes("UnityPlayer.so")) {
+        alert(`Failed to launch ${game.name}. Unity games often require specific launcher scripts. Make sure the game is properly installed and has executable permissions.`);
+      } else {
+        alert(`Failed to launch ${game.name}: ${errorMessage}`);
+      }
     }
   };
 
-  // Handle game added
+  // Handle game added/updated
   const handleGameAdded = () => {
     fetchGames(); // Refresh the games list
+    setEditingGame(null); // Clear editing state
+  };
+
+  // Handle edit game
+  const handleEditGame = (game: GameData) => {
+    setEditingGame(game);
+    setIsAddGameModalOpen(true);
+  };
+
+  // Handle delete game
+  const handleDeleteGame = async (game: GameData) => {
+    if (confirm(`Are you sure you want to delete "${game.name}"?`)) {
+      try {
+        // TODO: Implement delete_game backend command
+        console.log("Delete game:", game.id);
+        // For now, just refresh the list
+        fetchGames();
+      } catch (error) {
+        console.error("Failed to delete game:", error);
+      }
+    }
+  };
+
+  // Handle modal close
+  const handleCloseModal = () => {
+    setIsAddGameModalOpen(false);
+    setEditingGame(null);
   };
 
   return (
@@ -98,7 +144,13 @@ function App() {
               <p>No games added yet. Click "+ Add Game" to get started!</p>
             ) : (
               games.map(game => (
-                <GameCard key={game.id} game={game} onLaunch={() => handleLaunchGame(game)} />
+                <GameCard 
+                  key={game.id} 
+                  game={game} 
+                  onLaunch={() => handleLaunchGame(game)}
+                  onEdit={() => handleEditGame(game)}
+                  onDelete={() => handleDeleteGame(game)}
+                />
               ))
             )}
           </div>
@@ -107,12 +159,19 @@ function App() {
 
       <AddGameModal
         isOpen={isAddGameModalOpen}
-        onClose={() => setIsAddGameModalOpen(false)}
+        onClose={handleCloseModal}
         onGameAdded={handleGameAdded}
+        editGame={editingGame ? {
+          id: editingGame.id,
+          name: editingGame.name,
+          platform: editingGame.platform || "steam",
+          platform_app_id: editingGame.version,
+          executable_path: editingGame.executablePath,
+          installation_path: editingGame.installation_path,
+        } : undefined}
       />
     </div>
   );
 }
 
 export default App;
-
