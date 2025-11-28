@@ -267,6 +267,9 @@ setup: install
 	@echo "  make test    # Run tests"
 	@echo "  make build   # Production build"
 	@echo ""
+build-windows:
+	npm run tauri build -- --target x86_64-pc-windows-msvc
+
 
 # Status check
 status:
