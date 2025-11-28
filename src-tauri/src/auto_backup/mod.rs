@@ -4,13 +4,8 @@ pub mod retention;
 pub mod integration;
 
 pub use manager::AutoBackupManager;
-pub use monitor::{SaveMonitor, SaveMonitorHandle};
+pub use monitor::SaveMonitor;
 pub use retention::RetentionPolicy;
-pub use integration::BackupIntegrationLayer;
-
-use crate::database::DatabaseConnection;
-use crate::database::DatabaseResult;
-use crate::manifest::ManifestResolver;
 
 /// Events emitted by the auto-backup system
 #[derive(Debug, Clone)]

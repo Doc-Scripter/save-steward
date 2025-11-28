@@ -7,18 +7,16 @@ pub mod types;
 pub mod cloud;
 
 use crate::database::connection::{EncryptedDatabase, DatabasePaths};
-use std::path::Path;
 use git2::Repository;
 use tokio::fs;
 use chrono::{DateTime, Utc};
 
-#[derive(Debug)]
 pub struct GitSaveManager {
     db: std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>,
     master_repo_path: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct GitSaveCommit {
     pub hash: String,
     pub message: String,
@@ -27,7 +25,7 @@ pub struct GitSaveCommit {
     pub game_name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct GitSaveHistory {
     pub commits: Vec<GitSaveCommit>,
     pub branches: Vec<String>,
@@ -37,7 +35,7 @@ pub struct GitSaveHistory {
 impl GitSaveManager {
     pub fn new(db: std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>) -> Self {
         // Use a centralized saves directory
-        let saves_dir = DatabasePaths::data_dir().join("game_saves");
+        let saves_dir = DatabasePaths::default_app_data_dir().join("game_saves");
         
         Self { 
             db, 
@@ -137,7 +135,7 @@ README.md
     /// Create a save checkpoint with user-named branch
     pub async fn create_save_checkpoint(&self, game_id: i64, save_name: &str) -> Result<String, String> {
         let conn_guard = self.db.lock().await;
-        let mut conn = conn_guard.get_connection().await;
+        let conn = conn_guard.get_connection().await;
         
         // Get game name
         let mut stmt = conn.prepare("SELECT name FROM games WHERE id = ?")
@@ -145,8 +143,6 @@ README.md
         
         let game_name: String = stmt.query_row([game_id], |row| row.get(0))
             .map_err(|e| format!("Failed to get game name: {}", e))?;
-
-        drop(conn_guard);
 
         // Create branch name: gamename+save-name
         let branch_name = format!("{}+{}", game_name, save_name);
@@ -171,10 +167,9 @@ README.md
         }
 
         // Get current branch to fork from
-        let current_branch = repo.get_current_branch()?
-            .ok_or_else(|| "No current branch".to_string())?;
-            
-        let current_commit = current_branch.get().peel_to_commit()
+        let current_commit = repo.head()
+            .map_err(|e| format!("Failed to get HEAD: {}", e))?
+            .peel_to_commit()
             .map_err(|e| format!("Failed to get current commit: {}", e))?;
 
         // Create new branch from current HEAD
@@ -200,7 +195,7 @@ README.md
 
     /// Create a new branch (alias for create_save_checkpoint)
     pub async fn create_save_branch(&self, game_id: i64, branch_name: &str, _description: Option<&str>) -> Result<(), String> {
-        self.create_save_checkpoint(game_id, branch_name).await
+        self.create_save_checkpoint(game_id, branch_name).await.map(|_| ())
     }
 
     /// Switch to a branch
@@ -230,13 +225,13 @@ README.md
             .map_err(|e| format!("Failed to open master repository: {}", e))?;
 
         // Find commit
-        let commit = repo.find_commit(git2::Oid::from_str(commit_hash))
+        let commit = repo.find_commit(git2::Oid::from_str(commit_hash).map_err(|e| format!("Invalid commit hash: {}", e))?)
             .map_err(|e| format!("Failed to find commit '{}': {}", commit_hash, e))?;
 
         // Create new branch for this commit (optional)
         let timestamp = commit.time();
-        let branch_name = format!("restore-{}-{}", 
-            timestamp.format("%Y%m%d-%H%M%S"), 
+        let branch_name = format!("restore-{}-{}",
+            chrono::DateTime::from_timestamp(timestamp.seconds(), 0).unwrap().format("%Y%m%d-%H%M%S"),
             commit_hash.chars().take(8).collect::<String>()
         );
 
@@ -258,7 +253,7 @@ README.md
         let repo = Repository::open(&self.master_repo_path)
             .map_err(|e| format!("Failed to open master repository: {}", e))?;
 
-        let revwalk = repo.revwalk()
+        let mut revwalk = repo.revwalk()
             .map_err(|e| format!("Failed to create revision walker: {}", e))?;
 
         revwalk.push_head()
@@ -302,20 +297,20 @@ README.md
             .map_err(|e| format!("Failed to open master repository: {}", e))?;
 
         // Get current branch
-        let current_branch = repo.get_current_branch()?
-            .and_then(|b| b.name().map(|s| s.to_string()))
+        let current_branch = repo.head()
+            .ok()
+            .and_then(|r| r.shorthand().map(|s| s.to_string()))
             .unwrap_or_else(|| "detached".to_string());
 
         // Get all branches
         let branches: Vec<String> = repo.branches(Some(git2::BranchType::Local))
             .map_err(|e| format!("Failed to get branches: {}", e))?
             .filter_map(|b| b.ok())
-            .map(|(b, _)| b.name().map(|s| s.to_string()))
-            .filter_map(|s| s)
+            .map(|(b, _)| b.name().unwrap_or(None).map(|s| s.to_string()).unwrap_or_else(|| "".to_string()))
             .collect();
 
         // Get commit history
-        let revwalk = repo.revwalk()
+        let mut revwalk = repo.revwalk()
             .map_err(|e| format!("Failed to create revision walker: {}", e))?;
 
         revwalk.push_head()
@@ -378,8 +373,7 @@ README.md
         let branches: Vec<String> = repo.branches(Some(git2::BranchType::Local))
             .map_err(|e| format!("Failed to get branches: {}", e))?
             .filter_map(|b| b.ok())
-            .map(|(b, _)| b.name().map(|s| s.to_string()))
-            .filter_map(|s| s)
+            .map(|(b, _)| if let Ok(Some(s)) = b.name() { s.to_string() } else { "".to_string() })
             .collect();
 
         Ok(branches)

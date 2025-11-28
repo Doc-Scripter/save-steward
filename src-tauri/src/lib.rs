@@ -12,7 +12,7 @@ use crate::pcgaming_wiki::PcgwClient;
 use crate::database::connection::{EncryptedDatabase, DatabasePaths};
 use crate::database::models::AddGameRequest;
 use crate::game_manager::GameManager;
-use crate::git_manager::{GitSaveManager, types::*};
+use crate::git_manager::GitSaveManager;
 use crate::launch_utils::launch_game_enhanced;
 use std::sync::Arc;
 
@@ -194,7 +194,7 @@ async fn delete_game_sync(game_id: i64) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn enable_git_for_game(game_id: i64) -> Result<String, String> {
+async fn enable_git_for_game(_game_id: i64) -> Result<String, String> {
     // Initialize database connection
     let db_path = DatabasePaths::database_file();
     let db = EncryptedDatabase::new(&db_path, "default_password")
@@ -205,7 +205,7 @@ async fn enable_git_for_game(game_id: i64) -> Result<String, String> {
 
     // Initialize Git repository
     let git_manager = GitSaveManager::new(db_conn.clone());
-    git_manager.initialize_game_repo(game_id).await
+    git_manager.initialize_master_repo().await
         .map_err(|e| format!("Failed to initialize Git repository: {}", e))
 }
 
@@ -295,7 +295,7 @@ async fn restore_to_timestamp(game_id: i64, timestamp: String) -> Result<String,
 }
 
 #[tauri::command]
-async fn get_git_history(game_id: i64, branch: Option<String>) -> Result<serde_json::Value, String> {
+async fn get_git_history(game_id: i64, _branch: Option<String>) -> Result<serde_json::Value, String> {
     // Initialize database connection
     let db_path = DatabasePaths::database_file();
     let db = EncryptedDatabase::new(&db_path, "default_password")
@@ -343,49 +343,22 @@ async fn search_pcgw_games(query: String) -> Result<serde_json::Value, String> {
     let db_conn = Arc::new(tokio::sync::Mutex::new(db));
     
     let client = PcgwClient::new();
-    // We need to access the inner Arc<Mutex<Connection>> from EncryptedDatabase
-    // But EncryptedDatabase doesn't expose it directly as Arc<Mutex<Connection>>.
-    // It seems I made a mistake assuming I could easily get it.
-    // EncryptedDatabase wraps Connection directly, not Arc<Mutex<Connection>>.
-    // So I can't pass it to PcgwClient which expects Arc<Mutex<Connection>>.
-    
-    // WORKAROUND: For now, I will modify PcgwClient to accept Arc<Mutex<EncryptedDatabase>>? 
-    // No, that creates circular dependency.
-    
-    // I must expose the connection from EncryptedDatabase or change PcgwClient to take something else.
-    // Since I am in lib.rs, I have control.
-    
-    // Let's assume for a moment I can get a connection.
-    // Actually, EncryptedDatabase is defined in crate::database::connection.
-    // I should check if I can clone the connection or something.
-    // But rusqlite Connection is not cloneable.
-    
-    // Okay, I will modify PcgwClient to take `&Connection` for the high-level methods too, 
-    // and handle the locking in lib.rs.
-    
-    // Wait, I can't pass &Connection to async fn in lib.rs either!
-    
-    // This is the same problem as before.
-    
-    // The only way is to use the "manual caching" pattern in lib.rs too.
-    
-    let client = PcgwClient::new();
     let cache_key = format!("search:{}", query);
     
     // 1. Check cache
     {
         let conn_guard = db_conn.lock().await;
-        let conn = conn_guard.get_connection();
+        let conn = conn_guard.get_connection().await;
         // PcgwCache::get is sync, so this is fine
-        if let Ok(Some(cached_json)) = crate::pcgaming_wiki::cache::PcgwCache::get(conn, &cache_key) {
-             let response: crate::pcgaming_wiki::models::CargoQueryResponse<crate::pcgaming_wiki::models::PcgwGameInfo> = serde_json::from_str(&cached_json).map_err(|e| e.to_string())?;
-             // I need to access map_search_results but it's private or I need to make it public
-             // or just duplicate logic here.
-             // Let's make map_search_results public in client.rs? 
-             // Or just use client.parse_search_results_json (I need to add this).
-             
-             // Let's assume I added parse_search_results_json to client.rs
-             // return Ok(serde_json::to_value(client.parse_search_results_json(&cached_json).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?);
+        if let Ok(Some(cached_json)) = crate::pcgaming_wiki::cache::PcgwCache::get(&conn, &cache_key) {
+            let response: crate::pcgaming_wiki::models::CargoQueryResponse<crate::pcgaming_wiki::models::PcgwGameInfo> = serde_json::from_str(&cached_json).map_err(|e| e.to_string())?;
+            // I need to access map_search_results but it's private or I need to make it public
+            // or just duplicate logic here.
+            // Let's make map_search_results public in client.rs? 
+            // Or just use client.parse_search_results_json (I need to add this).
+            
+            // Let's assume I added parse_search_results_json to client.rs
+            // return Ok(serde_json::to_value(client.parse_search_results_json(&cached_json).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?);
         }
     }
     
@@ -395,8 +368,8 @@ async fn search_pcgw_games(query: String) -> Result<serde_json::Value, String> {
     // 3. Cache response
     {
         let conn_guard = db_conn.lock().await;
-        let conn = conn_guard.get_connection();
-        let _ = crate::pcgaming_wiki::cache::PcgwCache::set(conn, &cache_key, &response_text, 1);
+        let conn = conn_guard.get_connection().await;
+        let _ = crate::pcgaming_wiki::cache::PcgwCache::set(&conn, &cache_key, &response_text, 1);
     }
     
     // 4. Parse and return
@@ -435,8 +408,8 @@ async fn get_pcgw_save_locations(game_name: String) -> Result<serde_json::Value,
     // 1. Check cache
     {
         let conn_guard = db_conn.lock().await;
-        let conn = conn_guard.get_connection();
-        if let Ok(Some(cached_json)) = crate::pcgaming_wiki::cache::PcgwCache::get(conn, &cache_key) {
+        let conn = conn_guard.get_connection().await;
+        if let Ok(Some(cached_json)) = crate::pcgaming_wiki::cache::PcgwCache::get(&conn, &cache_key) {
              let result = client.parse_save_locations_json(&cached_json).map_err(|e| e.to_string())?;
              return Ok(serde_json::to_value(result).map_err(|e| e.to_string())?);
         }
@@ -448,8 +421,8 @@ async fn get_pcgw_save_locations(game_name: String) -> Result<serde_json::Value,
     // 3. Cache response
     {
         let conn_guard = db_conn.lock().await;
-        let conn = conn_guard.get_connection();
-        let _ = crate::pcgaming_wiki::cache::PcgwCache::set(conn, &cache_key, &response_text, 7);
+        let conn = conn_guard.get_connection().await;
+        let _ = crate::pcgaming_wiki::cache::PcgwCache::set(&conn, &cache_key, &response_text, 7);
     }
     
     // 4. Parse and return

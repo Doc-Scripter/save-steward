@@ -1,6 +1,6 @@
 use anyhow::Result as AnyhowResult;
-use argon2::{Argon2, PasswordHasher, PasswordVerifier};
-use argon2::password_hash::{PasswordHash, PasswordHasher as ArgonPasswordHasher, SaltString};
+use argon2::{Argon2};
+use argon2::password_hash::{SaltString};
 use rusqlite::{Connection, OpenFlags};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

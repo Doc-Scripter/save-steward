@@ -5,4 +5,3 @@ pub mod save_location_parser;
 pub mod cache;
 
 pub use client::PcgwClient;
-pub use models::*;

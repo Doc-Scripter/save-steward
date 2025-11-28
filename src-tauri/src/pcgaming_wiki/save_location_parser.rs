@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use platform_dirs::{AppDirs, UserDirs};
-use regex::Regex;
 
 pub struct SaveLocationParser;
 
@@ -11,7 +10,7 @@ impl SaveLocationParser {
         // 1. Resolve common PCGamingWiki templates
         // Windows
         if let Some(user_dirs) = UserDirs::new() {
-            let home = user_dirs.home_dir.to_string_lossy();
+            let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap_or_default();
             path_str = path_str.replace("{{p|userprofile}}", &home);
             
             let documents = user_dirs.document_dir.to_string_lossy();
@@ -20,7 +19,6 @@ impl SaveLocationParser {
 
         if let Some(app_dirs) = AppDirs::new(None, false) {
              // AppData/Roaming
-            let roaming = app_dirs.config_dir.parent().unwrap().to_string_lossy(); 
              // Note: platform-dirs config_dir is usually Roaming on Windows
              // But we need to be careful. Let's use std::env for Windows specifics if needed.
         }

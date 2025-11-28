@@ -1,5 +1,4 @@
 use reqwest::Client;
-use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 use thiserror::Error;

@@ -3,13 +3,12 @@
 //! This module provides integration with GitHub, GitLab, and other Git hosting services
 //! for backing up and synchronizing game save repositories.
 
-use anyhow::{Result, Context};
+use anyhow::Result;
 use reqwest::{Client, header};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use crate::database::connection::EncryptedDatabase;
 use crate::git_manager::types::*;
 
@@ -50,7 +49,7 @@ impl CloudSyncManager {
         let repo_config = self.get_repo_config(game_id).await?;
         
         match repo_config.provider {
-            Some(provider) => {
+            Some(ref provider) => {
                 match provider {
                     CloudProvider::GitHub => self.push_to_github(game_id, &repo_config).await,
                     CloudProvider::GitLab => self.push_to_gitlab(game_id, &repo_config).await,
@@ -92,7 +91,7 @@ impl CloudSyncManager {
         Ok(CloudSyncResult {
             success: true,
             provider: CloudProvider::GitHub,
-            repository_url: Some(repo_url),
+            repository_url: Some(repo_url.clone()),
             sync_url: Some(repo_url),
             message: format!("Successfully pushed to GitHub in {}ms", execution_time),
             timestamp: Utc::now(),
@@ -129,7 +128,7 @@ impl CloudSyncManager {
         Ok(CloudSyncResult {
             success: true,
             provider: CloudProvider::GitLab,
-            repository_url: Some(project_url),
+            repository_url: Some(project_url.clone()),
             sync_url: Some(project_url),
             message: format!("Successfully pushed to GitLab in {}ms", execution_time),
             timestamp: Utc::now(),
@@ -157,16 +156,16 @@ impl CloudSyncManager {
         self.pull_repository(game_id, "origin", &repo_config.default_branch).await?;
         
         // Update sync status
-        self.update_sync_status(game_id, 
-            repo_config.provider.unwrap(), 
-            SyncStatus::Success, 
+        self.update_sync_status(game_id,
+            repo_config.provider.clone().unwrap(),
+            SyncStatus::Success,
             repo_config.remote_url.as_deref()
         ).await?;
         
         Ok(CloudSyncResult {
             success: true,
             provider: repo_config.provider.unwrap(),
-            repository_url: repo_config.remote_url,
+            repository_url: repo_config.remote_url.clone(),
             sync_url: repo_config.remote_url,
             message: "Successfully pulled from cloud".to_string(),
             timestamp: Utc::now(),
@@ -176,7 +175,7 @@ impl CloudSyncManager {
     /// Get cloud sync status
     pub async fn get_sync_status(&self, game_id: i64) -> Result<Vec<CloudSyncStatus>> {
         let db = self.db.lock().await;
-        let conn = db.get_connection().await?;
+        let conn = db.get_connection().await;
         
         let mut stmt = conn.prepare(
             "SELECT provider, last_sync_at, sync_status, remote_url, error_message
@@ -189,12 +188,15 @@ impl CloudSyncManager {
         let status_iter = stmt.query_map([game_id], |row| {
             Ok(CloudSyncStatus {
                 game_id,
-                provider: serde_json::from_str(row.get::<_, String>(0)?)
+                provider: serde_json::from_str(row.get::<_, String>(0)?.as_str())
                     .unwrap_or(CloudProvider::GitHub),
                 last_sync: row.get::<_, Option<String>>(1)?
-                    .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
-                    .map(|dt| dt.with_timezone(&Utc)),
-                sync_status: serde_json::from_str(row.get::<_, String>(2)?)
+                    .and_then(|s| {
+                        chrono::DateTime::parse_from_rfc3339(s.as_str())
+                            .ok()
+                            .map(|dt| dt.with_timezone(&Utc))
+                    }),
+                sync_status: serde_json::from_str(row.get::<_, String>(2)?.as_str())
                     .unwrap_or(SyncStatus::NotConfigured),
                 remote_url: row.get(3)?,
                 error_message: row.get(4)?,
@@ -222,13 +224,13 @@ impl CloudSyncManager {
         
         // Update repository configuration
         let db = self.db.lock().await;
-        let conn = db.get_connection().await?;
+        let conn = db.get_connection().await;
         
         conn.execute(
-            "UPDATE git_repositories 
+            "UPDATE git_repositories
              SET cloud_provider = ?, auto_sync = ?
              WHERE game_id = ?",
-            [serde_json::to_string(&provider)?, auto_sync, game_id]
+            [serde_json::to_string(&provider)?, auto_sync.to_string(), game_id.to_string()]
         )?;
         
         Ok(CloudSyncResult {
@@ -244,7 +246,7 @@ impl CloudSyncManager {
     /// Helper methods
     async fn get_repo_config(&self, game_id: i64) -> Result<GitRepositoryConfig> {
         let db = self.db.lock().await;
-        let conn = db.get_connection().await?;
+        let conn = db.get_connection().await;
         
         let mut stmt = conn.prepare(
             "SELECT local_path, remote_url, cloud_provider, default_branch, auto_sync, git_lfs_enabled
@@ -266,7 +268,11 @@ impl CloudSyncManager {
                 git_lfs_enabled: row.get(5)?,
                 created_at: Utc::now(),
                 last_sync: row.get::<_, Option<String>>(1)?
-                    .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok()),
+                    .and_then(|s| {
+                        chrono::DateTime::parse_from_rfc3339(s.as_str())
+                            .ok()
+                            .map(|dt| dt.with_timezone(&Utc))
+                    }),
             })
         })?;
         
@@ -302,7 +308,7 @@ impl CloudSyncManager {
         remote_url: Option<&str>
     ) -> Result<()> {
         let db = self.db.lock().await;
-        let conn = db.get_connection().await?;
+        let conn = db.get_connection().await;
         
         conn.execute(
             "INSERT INTO cloud_sync_log (game_id, provider, sync_status, remote_url, created_at)

@@ -1,5 +1,4 @@
 use rusqlite::Connection;
-use std::path::Path;
 use crate::database::connection::DatabaseResult;
 
 pub const DATABASE_VERSION: u32 = 1;

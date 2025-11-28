@@ -20,8 +20,8 @@ impl GameManager {
         // Check cache first
         {
             let conn_guard = db.lock().await;
-            let conn = conn_guard.get_connection();
-            if let Ok(Some(cached_json)) = crate::pcgaming_wiki::cache::PcgwCache::get(conn, &cache_key) {
+            let conn = conn_guard.get_connection().await;
+            if let Ok(Some(cached_json)) = crate::pcgaming_wiki::cache::PcgwCache::get(&conn, &cache_key) {
                  let client = PcgwClient::new();
                  if let Ok(result) = client.parse_save_locations_json(&cached_json) {
                      // Convert result to SaveLocation objects
@@ -452,17 +452,17 @@ impl GameManager {
         let tx = conn.transaction().map_err(|e| format!("Transaction error: {}", e))?;
 
         // Delete in reverse dependency order
-        tx.execute("DELETE FROM git_save_snapshots WHERE game_id = ?", [game_id])?;
-        tx.execute("DELETE FROM cloud_sync_log WHERE game_id = ?", [game_id])?;
-        tx.execute("DELETE FROM git_save_commits WHERE game_id = ?", [game_id])?;
-        tx.execute("DELETE FROM git_branches WHERE game_id = ?", [game_id])?;
-        tx.execute("DELETE FROM git_repositories WHERE game_id = ?", [game_id])?;
-        tx.execute("DELETE FROM save_versions WHERE detected_save_id IN (SELECT id FROM detected_saves WHERE game_id = ?)", [game_id])?;
-        tx.execute("DELETE FROM detected_saves WHERE game_id = ?", [game_id])?;
-        tx.execute("DELETE FROM save_locations WHERE game_id = ?", [game_id])?;
-        tx.execute("DELETE FROM user_games WHERE game_id = ?", [game_id])?;
-        tx.execute("DELETE FROM game_identifiers WHERE game_id = ?", [game_id])?;
-        tx.execute("DELETE FROM games WHERE id = ?", [game_id])?;
+        tx.execute("DELETE FROM git_save_snapshots WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        tx.execute("DELETE FROM cloud_sync_log WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        tx.execute("DELETE FROM git_save_commits WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        tx.execute("DELETE FROM git_branches WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        tx.execute("DELETE FROM git_repositories WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        tx.execute("DELETE FROM save_versions WHERE detected_save_id IN (SELECT id FROM detected_saves WHERE game_id = ?)", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        tx.execute("DELETE FROM detected_saves WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        tx.execute("DELETE FROM save_locations WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        tx.execute("DELETE FROM user_games WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        tx.execute("DELETE FROM game_identifiers WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        tx.execute("DELETE FROM games WHERE id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
 
         // Commit transaction
         tx.commit().map_err(|e| format!("Commit error: {}", e))?;
