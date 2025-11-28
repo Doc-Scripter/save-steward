@@ -7,6 +7,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use base64::{Engine as _, engine::general_purpose};
 
+use crate::database::schema::DATABASE_VERSION;
+
 pub type DatabaseResult<T> = AnyhowResult<T>;
 
 pub type DatabaseConnection = Arc<tokio::sync::Mutex<rusqlite::Connection>>;
@@ -134,6 +136,32 @@ impl EncryptedDatabase {
     pub async fn initialize_schema(&self) -> DatabaseResult<()> {
         let conn = self.get_connection().await;
         crate::database::schema::DatabaseSchema::create_tables(&conn)?;
+        Ok(())
+    }
+
+    /// Initialize the database with proper versioning and schema creation
+    pub async fn initialize_database(&self) -> DatabaseResult<()> {
+        let _conn = self.get_connection().await;
+        
+        // We need a mutable reference for schema operations, but get_connection returns a guard
+        // Let's create a new temporary connection for schema operations
+        let temp_conn = Connection::open(&self.path)?;
+        
+        // Get current database version
+        let current_version = crate::database::schema::DatabaseSchema::get_database_version(&temp_conn)?;
+        
+        // If database is not initialized or has wrong version, recreate schema
+        if current_version != DATABASE_VERSION {
+            eprintln!("Database schema version mismatch (current: {}, required: {}). Recreating schema...", current_version, DATABASE_VERSION);
+            
+            // Drop all tables and recreate
+            crate::database::schema::DatabaseSchema::drop_tables(&temp_conn)?;
+            crate::database::schema::DatabaseSchema::create_tables(&temp_conn)?;
+            
+            // Set the version
+            crate::database::schema::DatabaseSchema::set_database_version(&temp_conn, DATABASE_VERSION)?;
+        }
+        
         Ok(())
     }
 

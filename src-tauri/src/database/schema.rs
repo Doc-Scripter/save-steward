@@ -324,14 +324,27 @@ impl DatabaseSchema {
         Ok(())
     }
 
-    fn drop_tables(conn: &Connection) -> DatabaseResult<()> {
+    pub fn drop_tables(conn: &Connection) -> DatabaseResult<()> {
         let tables = [
-            "user_games",
-            "game_identifiers",
+            // Git-related tables (in reverse dependency order)
+            "git_save_snapshots",
+            "cloud_sync_log", 
+            "git_save_commits",
+            "git_branches",
+            "git_repositories",
+            // Save management tables
             "save_versions",
             "detected_saves",
             "save_locations",
+            "user_games",
+            "game_identifiers",
+            // PCGW tables
+            "game_pcgw_mapping",
+            "pcgw_cache",
+            // Core table last
             "games",
+            // Database version table
+            "db_version",
         ];
 
         for table in &tables {

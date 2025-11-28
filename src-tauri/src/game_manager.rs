@@ -451,18 +451,51 @@ impl GameManager {
         // Start transaction
         let tx = conn.transaction().map_err(|e| format!("Transaction error: {}", e))?;
 
-        // Delete in reverse dependency order
-        tx.execute("DELETE FROM git_save_snapshots WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
-        tx.execute("DELETE FROM cloud_sync_log WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
-        tx.execute("DELETE FROM git_save_commits WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
-        tx.execute("DELETE FROM git_branches WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
-        tx.execute("DELETE FROM git_repositories WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
-        tx.execute("DELETE FROM save_versions WHERE detected_save_id IN (SELECT id FROM detected_saves WHERE game_id = ?)", [game_id]).map_err(|e| format!("Database error: {}", e))?;
-        tx.execute("DELETE FROM detected_saves WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
-        tx.execute("DELETE FROM save_locations WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
-        tx.execute("DELETE FROM user_games WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
-        tx.execute("DELETE FROM game_identifiers WHERE game_id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
-        tx.execute("DELETE FROM games WHERE id = ?", [game_id]).map_err(|e| format!("Database error: {}", e))?;
+        // Helper function to safely execute delete with better error handling
+        let safe_delete = |tx: &rusqlite::Transaction, table: &str, game_id: i64| -> Result<(), String> {
+            match tx.execute(&format!("DELETE FROM {} WHERE game_id = ?", table), [game_id]) {
+                Ok(_) => Ok(()),
+                Err(rusqlite::Error::SqliteFailure(_, _)) => {
+                    // Table doesn't exist or other SQLite error - log and continue
+                    eprintln!("Warning: Table '{}' does not exist or other error, skipping deletion", table);
+                    Ok(())
+                }
+                Err(e) => Err(format!("Failed to delete from {}: {}", table, e)),
+            }
+        };
+
+        // Delete in reverse dependency order to avoid foreign key constraint issues
+        safe_delete(&tx, "git_save_snapshots", game_id)?;
+        safe_delete(&tx, "cloud_sync_log", game_id)?;
+        safe_delete(&tx, "git_save_commits", game_id)?;
+        safe_delete(&tx, "git_branches", game_id)?;
+        safe_delete(&tx, "git_repositories", game_id)?;
+        
+        // Handle save_versions (which references detected_saves)
+        match tx.execute(
+            "DELETE FROM save_versions WHERE detected_save_id IN (SELECT id FROM detected_saves WHERE game_id = ?)", 
+            [game_id]
+        ) {
+            Ok(_) => Ok(()),
+            Err(rusqlite::Error::SqliteFailure(_, _)) => {
+                eprintln!("Warning: save_versions table does not exist or other error, skipping");
+                Ok(())
+            }
+            Err(e) => Err(format!("Failed to delete save_versions: {}", e)),
+        }?;
+        
+        safe_delete(&tx, "detected_saves", game_id)?;
+        safe_delete(&tx, "save_locations", game_id)?;
+        safe_delete(&tx, "user_games", game_id)?;
+        safe_delete(&tx, "game_identifiers", game_id)?;
+        
+        // Finally delete the game itself
+        let rows_affected = tx.execute("DELETE FROM games WHERE id = ?", [game_id])
+            .map_err(|e| format!("Failed to delete game: {}", e))?;
+            
+        if rows_affected == 0 {
+            return Err(format!("Game with id {} not found", game_id));
+        }
 
         // Commit transaction
         tx.commit().map_err(|e| format!("Commit error: {}", e))?;

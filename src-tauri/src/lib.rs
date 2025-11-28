@@ -51,10 +51,10 @@ async fn add_manual_game(request: AddGameRequest) -> Result<serde_json::Value, S
         .await
         .map_err(|e| format!("Database initialization error: {}", e))?;
 
-    // Ensure schema is initialized
-    db.initialize_schema()
+    // Ensure database is properly initialized with current schema version
+    db.initialize_database()
         .await
-        .map_err(|e| format!("Schema initialization error: {}", e))?;
+        .map_err(|e| format!("Database initialization error: {}", e))?;
 
     let db_conn = Arc::new(tokio::sync::Mutex::new(db));
 
@@ -72,10 +72,10 @@ async fn add_manual_game_sync(request: AddGameRequest) -> Result<serde_json::Val
         .await
         .map_err(|e| format!("Database initialization error: {}", e))?;
 
-    // Ensure schema is initialized
-    db.initialize_schema()
+    // Ensure database is properly initialized with current schema version
+    db.initialize_database()
         .await
-        .map_err(|e| format!("Schema initialization error: {}", e))?;
+        .map_err(|e| format!("Database initialization error: {}", e))?;
 
     let db_conn = Arc::new(tokio::sync::Mutex::new(db));
 
