@@ -45,18 +45,8 @@ async fn scan_running_games() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 async fn add_manual_game(request: AddGameRequest) -> Result<serde_json::Value, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    // Ensure database is properly initialized with current schema version
-    db.initialize_database()
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Add the game
     let result = GameManager::add_manual_game(&db_conn, request).await?;
@@ -66,18 +56,8 @@ async fn add_manual_game(request: AddGameRequest) -> Result<serde_json::Value, S
 
 #[tauri::command]
 async fn add_manual_game_sync(request: AddGameRequest) -> Result<serde_json::Value, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    // Ensure database is properly initialized with current schema version
-    db.initialize_database()
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Add the game
     let result = GameManager::add_manual_game(&db_conn, request).await?;
@@ -87,13 +67,8 @@ async fn add_manual_game_sync(request: AddGameRequest) -> Result<serde_json::Val
 
 #[tauri::command]
 async fn get_all_games() -> Result<serde_json::Value, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Get all games
     let games = GameManager::get_all_games(&db_conn).await?;
@@ -163,13 +138,8 @@ fn get_install_dir_from_executable(executable_path: &str) -> String {
 
 #[tauri::command]
 async fn update_game_sync(game_id: i64, request: AddGameRequest) -> Result<serde_json::Value, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Update the game
     let result = GameManager::update_game(&db_conn, game_id, request).await?;
@@ -179,13 +149,8 @@ async fn update_game_sync(game_id: i64, request: AddGameRequest) -> Result<serde
 
 #[tauri::command]
 async fn delete_game_sync(game_id: i64) -> Result<(), String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Delete the game
     GameManager::delete_game(&db_conn, game_id).await?;
@@ -195,13 +160,8 @@ async fn delete_game_sync(game_id: i64) -> Result<(), String> {
 
 #[tauri::command]
 async fn enable_git_for_game(_game_id: i64) -> Result<String, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Initialize Git repository
     let git_manager = GitSaveManager::new(db_conn.clone());
@@ -211,13 +171,8 @@ async fn enable_git_for_game(_game_id: i64) -> Result<String, String> {
 
 #[tauri::command]
 async fn create_save_checkpoint(game_id: i64, message: String) -> Result<String, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Create save checkpoint
     let git_manager = GitSaveManager::new(db_conn.clone());
@@ -227,13 +182,8 @@ async fn create_save_checkpoint(game_id: i64, message: String) -> Result<String,
 
 #[tauri::command]
 async fn create_save_branch(game_id: i64, branch_name: String, description: Option<String>) -> Result<(), String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Create save branch
     let git_manager = GitSaveManager::new(db_conn.clone());
@@ -243,13 +193,8 @@ async fn create_save_branch(game_id: i64, branch_name: String, description: Opti
 
 #[tauri::command]
 async fn switch_save_branch(game_id: i64, branch_name: String) -> Result<(), String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Switch save branch
     let git_manager = GitSaveManager::new(db_conn.clone());
@@ -259,13 +204,8 @@ async fn switch_save_branch(game_id: i64, branch_name: String) -> Result<(), Str
 
 #[tauri::command]
 async fn restore_to_commit(game_id: i64, commit_hash: String) -> Result<(), String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Restore to commit
     let git_manager = GitSaveManager::new(db_conn.clone());
@@ -275,13 +215,8 @@ async fn restore_to_commit(game_id: i64, commit_hash: String) -> Result<(), Stri
 
 #[tauri::command]
 async fn restore_to_timestamp(game_id: i64, timestamp: String) -> Result<String, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Parse timestamp
     let target_time = chrono::DateTime::parse_from_rfc3339(&timestamp)
@@ -296,13 +231,8 @@ async fn restore_to_timestamp(game_id: i64, timestamp: String) -> Result<String,
 
 #[tauri::command]
 async fn get_git_history(game_id: i64, _branch: Option<String>) -> Result<serde_json::Value, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Get save history
     let git_manager = GitSaveManager::new(db_conn.clone());
@@ -315,13 +245,8 @@ async fn get_git_history(game_id: i64, _branch: Option<String>) -> Result<serde_
 
 #[tauri::command]
 async fn sync_to_cloud(game_id: i64) -> Result<serde_json::Value, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
 
     // Sync to cloud
     let git_manager = GitSaveManager::new(db_conn.clone());
@@ -334,13 +259,8 @@ async fn sync_to_cloud(game_id: i64) -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 async fn search_pcgw_games(query: String) -> Result<serde_json::Value, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
     
     let client = PcgwClient::new();
     let cache_key = format!("search:{}", query);
@@ -409,13 +329,8 @@ async fn search_pcgw_games(query: String) -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 async fn get_pcgw_save_locations(game_name: String) -> Result<serde_json::Value, String> {
-    // Initialize database connection
-    let db_path = DatabasePaths::database_file();
-    let db = EncryptedDatabase::new(&db_path, "default_password")
-        .await
-        .map_err(|e| format!("Database initialization error: {}", e))?;
-
-    let db_conn = Arc::new(tokio::sync::Mutex::new(db));
+    // Ensure database is ready using flag file approach
+    let db_conn = crate::database::connection::ensure_database_ready().await?;
     
     let client = PcgwClient::new();
     let cache_key = format!("save_loc:{}", game_name);
@@ -616,6 +531,22 @@ fn detect_executable_in_directory(folder_path: &str, game_name: &str) -> Result<
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize database at startup - app waits for this to complete
+    println!("Initializing database...");
+    let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+    runtime.block_on(async {
+        let db_path = DatabasePaths::database_file();
+        let db = EncryptedDatabase::new(&db_path, "default_password")
+            .await
+            .expect("Failed to connect to database - cannot start application");
+
+        db.initialize_database()
+            .await
+            .expect("Failed to initialize database schema - cannot start application");
+
+        println!("Database initialization complete");
+    });
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
