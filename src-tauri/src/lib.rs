@@ -380,10 +380,23 @@ async fn search_pcgw_games(query: String) -> Result<serde_json::Value, String> {
     let response: crate::pcgaming_wiki::models::CargoQueryResponse<crate::pcgaming_wiki::models::PcgwGameInfo> = serde_json::from_str(&response_text).map_err(|e| e.to_string())?;
     let results: Vec<crate::pcgaming_wiki::models::GameSearchResult> = response.cargoquery.into_iter().map(|item| {
             let info = item.title;
+
+            // Parse Steam AppID - take the first one (main game, not DLC)
+            let steam_id = if let Some(appids_str) = &info.steam_appid {
+                let main_appid = appids_str.split(',').next().unwrap_or("").trim();
+                if main_appid.is_empty() {
+                    None
+                } else {
+                    Some(main_appid.to_string())
+                }
+            } else {
+                None
+            };
+
             crate::pcgaming_wiki::models::GameSearchResult {
-                // Use search query as name since _pageName not in response
+                // Use search query as name (could be improved with page name lookup)
                 name: query.clone(),
-                steam_id: info.steam_appid,
+                steam_id,
                 publishers: info.publishers,
                 cover_image_url: None, // Will be populated separately via wikitext
             }
@@ -527,12 +540,17 @@ fn detect_executable_in_directory(folder_path: &str, game_name: &str) -> Result<
                 }
                 #[cfg(not(target_os = "windows"))]
                 {
-                    // On Unix-like systems, check file permissions
-                    if let Ok(metadata) = entry_path.metadata() {
-                        let permissions = metadata.permissions();
-                        permissions.mode() & 0o111 != 0 // Check if any execute bit is set
+                    // On Unix-like systems, check if it's a file first, then check permissions
+                    // This prevents directories with execute bit from being detected
+                    if entry_path.is_file() {
+                        if let Ok(metadata) = entry_path.metadata() {
+                            let permissions = metadata.permissions();
+                            permissions.mode() & 0o111 != 0 // Check if any execute bit is set
+                        } else {
+                            false
+                        }
                     } else {
-                        false
+                        false  // Skip directories entirely
                     }
                 }
             };
@@ -541,6 +559,16 @@ fn detect_executable_in_directory(folder_path: &str, game_name: &str) -> Result<
                 let full_path = entry_path.to_string_lossy().to_string();
                 let normalized_file = file_name.to_lowercase()
                     .replace(|c: char| !c.is_alphanumeric(), "");
+
+                // Skip shared libraries and other non-game files
+                let is_library = file_name.to_lowercase().ends_with(".so") ||
+                                file_name.to_lowercase().contains(".so.") ||
+                                file_name.to_lowercase().ends_with(".dll") ||
+                                file_name.to_lowercase().ends_with(".dylib");
+                
+                if is_library {
+                    continue; // Skip libraries
+                }
 
                 // Check for game name match (higher priority)
                 if normalized_file.contains(&normalized_name) || normalized_name.contains(&normalized_file) {
@@ -558,14 +586,16 @@ fn detect_executable_in_directory(folder_path: &str, game_name: &str) -> Result<
                     }
                     #[cfg(not(target_os = "windows"))]
                     {
+                        // Prioritize specific executable extensions
+                        file_name.to_lowercase().ends_with(".x86_64") ||
+                        file_name.to_lowercase().ends_with(".x86") ||
                         file_name.to_lowercase().ends_with(".sh") ||
                         file_name.to_lowercase().ends_with(".bin") ||
                         file_name.to_lowercase().ends_with(".run") ||
-                        file_name.to_lowercase().ends_with(".x86_64") ||
                         file_name == "run" ||
                         file_name.starts_with("start") ||
                         file_name.starts_with("launch") ||
-                        !file_name.contains(".") // Files without extension are often executables on Linux
+                        (!file_name.contains(".") && entry_path.is_file()) // Files without extension (but not directories)
                     }
                 };
 
