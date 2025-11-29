@@ -4,8 +4,8 @@ import { invoke } from '@tauri-apps/api/core';
 interface GameSearchResult {
   name: string;
   steam_id?: string;
-  developers?: string;
   publishers?: string;
+  cover_image_url?: string;
 }
 
 interface GameSearchProps {
@@ -79,8 +79,8 @@ export function GameSearch({ onSelect }: GameSearchProps) {
           >
             <div style={{ fontWeight: 'bold' }}>{game.name}</div>
             <div style={{ fontSize: '0.8em', color: '#666' }}>
-              {game.developers && <span>Dev: {game.developers}</span>}
-              {game.publishers && <span> • Pub: {game.publishers}</span>}
+              {game.steam_id && <span>Steam ID: {game.steam_id}</span>}
+              {game.publishers && <span> • Publisher: {game.publishers}</span>}
             </div>
           </div>
         ))}
