@@ -4,7 +4,8 @@
 //! enabling session-based branching with the pattern: gamename+save-name
 
 pub mod types;
-pub mod cloud;
+// TODO: Fix cloud.rs compilation errors (42 errors) before enabling
+// pub mod cloud;
 
 use crate::database::connection::{EncryptedDatabase, DatabasePaths};
 use git2::Repository;
