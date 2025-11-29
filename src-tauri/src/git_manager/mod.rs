@@ -251,45 +251,48 @@ README.md
 
     /// Restore to a timestamp (finds nearest commit)
     pub async fn restore_to_timestamp(&self, _game_id: i64, target_time: DateTime<Utc>) -> Result<String, String> {
-        let repo = Repository::open(&self.master_repo_path)
-            .map_err(|e| format!("Failed to open master repository: {}", e))?;
+        let (commit_hash, commit_msg) = {
+            let repo = Repository::open(&self.master_repo_path)
+                .map_err(|e| format!("Failed to open master repository: {}", e))?;
 
-        let mut revwalk = repo.revwalk()
-            .map_err(|e| format!("Failed to create revision walker: {}", e))?;
+            let mut revwalk = repo.revwalk()
+                .map_err(|e| format!("Failed to create revision walker: {}", e))?;
 
-        revwalk.push_head()
-            .map_err(|e| format!("Failed to push HEAD: {}", e))?;
+            revwalk.push_head()
+                .map_err(|e| format!("Failed to push HEAD: {}", e))?;
 
-        let mut closest_commit = None;
-        let mut closest_time_diff = i64::MAX;
+            let mut closest_commit = None;
+            let mut closest_time_diff = i64::MAX;
 
-        for oid in revwalk {
-            let oid = oid.map_err(|e| format!("Failed to get revision: {}", e))?;
-            let commit = repo.find_commit(oid)
-                .map_err(|e| format!("Failed to find commit: {}", e))?;
+            for oid in revwalk {
+                let oid = oid.map_err(|e| format!("Failed to get revision: {}", e))?;
+                let commit = repo.find_commit(oid)
+                    .map_err(|e| format!("Failed to find commit: {}", e))?;
 
-            let commit_time = commit.time();
-            let commit_datetime = DateTime::from_timestamp(commit_time.seconds(), 0)
-                .ok_or_else(|| "Invalid timestamp".to_string())?;
+                let commit_time = commit.time();
+                let commit_datetime = DateTime::from_timestamp(commit_time.seconds(), 0)
+                    .ok_or_else(|| "Invalid timestamp".to_string())?;
 
-            let time_diff = (target_time.timestamp() - commit_datetime.timestamp()).abs();
-            
-            if time_diff < closest_time_diff {
-                closest_time_diff = time_diff;
-                closest_commit = Some(commit);
+                let time_diff = (target_time.timestamp() - commit_datetime.timestamp()).abs();
+                
+                if time_diff < closest_time_diff {
+                    closest_time_diff = time_diff;
+                    closest_commit = Some(commit);
+                }
             }
-        }
 
-        if let Some(commit) = closest_commit {
-            let commit_hash = commit.id().to_string();
-            let commit_msg = commit.message().unwrap_or("Restore commit");
-            
-            self.restore_to_commit(_game_id, &commit_hash).await?;
-            
-            Ok(format!("Restored to nearest commit: {} ({})", commit_hash.chars().take(8).collect::<String>(), commit_msg))
-        } else {
-            Err("No commits found".to_string())
-        }
+            if let Some(commit) = closest_commit {
+                let hash = commit.id().to_string();
+                let msg = commit.message().unwrap_or("Restore commit").to_string();
+                (hash, msg)
+            } else {
+                return Err("No commits found".to_string());
+            }
+        };
+
+        self.restore_to_commit(_game_id, &commit_hash).await?;
+        
+        Ok(format!("Restored to nearest commit: {} ({})", commit_hash.chars().take(8).collect::<String>(), commit_msg))
     }
 
     /// Get save history
