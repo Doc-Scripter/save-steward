@@ -402,6 +402,8 @@ async fn search_pcgw_games(query: String) -> Result<serde_json::Value, String> {
             }
     }).collect();
     
+    println!("[DEBUG] PGWK Search Results: {:?}", results);
+    
     Ok(serde_json::to_value(results).map_err(|e| e.to_string())?)
 }
 
