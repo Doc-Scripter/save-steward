@@ -198,6 +198,46 @@ impl EncryptedDatabase {
     }
 }
 
+// Flag file approach for robust database initialization
+/// Ensure database is ready for use - creates tables if needed using flag file
+pub async fn ensure_database_ready() -> Result<Arc<tokio::sync::Mutex<EncryptedDatabase>>, String> {
+    let db_path = DatabasePaths::database_file();
+    let flag_path = db_path.with_extension("db_initialized");
+    
+    // Create database connection
+    let db = EncryptedDatabase::new(&db_path, "default_password")
+        .await
+        .map_err(|e| format!("Database connection error: {}", e))?;
+    
+    // Check if database needs initialization
+    if !flag_path.exists() {
+        println!("Database not initialized, creating tables...");
+        db.initialize_database().await
+            .map_err(|e| format!("Database initialization error: {}", e))?;
+        
+        // Create flag file to indicate initialization is complete
+        std::fs::write(&flag_path, "initialized").map_err(|e| {
+            format!("Failed to create initialization flag: {}", e)
+        })?;
+        println!("Database initialization complete");
+        
+        // Also handle schema version changes - check version after initialization
+        let temp_conn = Connection::open(&db_path)
+            .map_err(|e| format!("Failed to open database for version check: {}", e))?;
+        let current_version = crate::database::schema::DatabaseSchema::get_database_version(&temp_conn)
+            .map_err(|e| format!("Failed to get database version: {}", e))?;
+        
+        if current_version != DATABASE_VERSION {
+            eprintln!("Database schema version mismatch detected during startup check");
+            db.initialize_database().await
+                .map_err(|e| format!("Database re-initialization error: {}", e))?;
+            println!("Database schema updated successfully");
+        }
+    }
+    
+    Ok(Arc::new(tokio::sync::Mutex::new(db)))
+}
+
 // Database path management
 pub struct DatabasePaths;
 
