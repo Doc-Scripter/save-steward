@@ -52,6 +52,12 @@ format=json"
 }
 ```
 
+**Steam AppID Auto-Population:**
+- **Multiple AppIDs**: PCGW returns comma-separated AppIDs (main game + DLCs)
+- **Main AppID Extraction**: System automatically extracts the first AppID as the primary game ID
+- **Frontend Integration**: Selected games automatically populate the Steam AppID field
+- **Example**: `"292030,355880,370000"` → extracts `"292030"` (The Witcher 3 base game)
+
 ### Search by Exact Page Name
 
 **Example: Cyberpunk 2077**
