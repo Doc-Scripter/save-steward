@@ -81,6 +81,8 @@ function AddGameModal({ isOpen, onClose, onGameAdded, editGame }: AddGameModalPr
   };
 
   const handleGameSelect = (game: any) => {
+    console.log('[DEBUG] Game selected from PGWK:', game);
+    console.log('[DEBUG] Steam ID:', game.steam_id);
     setSelectedGame(game);
     setFormData(prev => ({
       ...prev,
@@ -88,6 +90,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded, editGame }: AddGameModalPr
       platform_app_id: game.steam_id || "",
       platform: game.steam_id ? "steam" : "standalone"
     }));
+    console.log('[DEBUG] Platform App ID set to:', game.steam_id || "(empty)");
     setStep(2);
   };
 
