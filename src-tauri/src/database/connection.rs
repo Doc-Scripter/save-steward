@@ -4,8 +4,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::database::schema::DATABASE_VERSION;
-
 pub type DatabaseResult<T> = AnyhowResult<T>;
 
 pub type DatabaseConnection = Arc<tokio::sync::Mutex<rusqlite::Connection>>;
@@ -68,45 +66,10 @@ impl Database {
         &self.path
     }
 
-    pub async fn is_initialized(&self) -> DatabaseResult<bool> {
-        let conn = self.get_connection().await;
-        let count: i64 = conn.query_row(
-            "SELECT count(name) FROM sqlite_master WHERE type='table' AND name='games'",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(0);
-        Ok(count > 0)
-    }
-
-    pub async fn initialize_schema(&self) -> DatabaseResult<()> {
-        let conn = self.get_connection().await;
-        crate::database::schema::DatabaseSchema::create_tables(&conn)?;
-        Ok(())
-    }
-
-    /// Initialize the database with proper versioning and schema creation
+    /// Initialize the database schema - creates all tables
     pub async fn initialize_database(&self) -> DatabaseResult<()> {
         let conn = self.get_connection().await;
-        
-        // Get current database version
-        let current_version = crate::database::schema::DatabaseSchema::get_database_version(&conn)?;
-        
-        // If database is not initialized or has wrong version, recreate schema
-        if current_version != DATABASE_VERSION {
-            eprintln!("Database schema version mismatch (current: {}, required: {}). Recreating schema...", current_version, DATABASE_VERSION);
-            
-            // Drop all tables and recreate
-            crate::database::schema::DatabaseSchema::drop_tables(&conn)?;
-            crate::database::schema::DatabaseSchema::create_tables(&conn)?;
-            
-            // Set the version
-            crate::database::schema::DatabaseSchema::set_database_version(&conn, DATABASE_VERSION)?;
-            
-            println!("Database schema created successfully with version {}", DATABASE_VERSION);
-        } else {
-            println!("Database schema is up to date (version {})", current_version);
-        }
-        
+        crate::database::schema::DatabaseSchema::create_tables(&conn)?;
         Ok(())
     }
 
@@ -116,83 +79,36 @@ impl Database {
     }
 }
 
-// Flag file approach for robust database initialization
-/// Ensure database is ready for use - creates tables if needed using flag file
+// Simple database initialization - no flags, no versions
 pub async fn ensure_database_ready() -> Result<Arc<tokio::sync::Mutex<Database>>, String> {
     let db_path = DatabasePaths::database_file();
-    let flag_path = db_path.with_extension("db_initialized");
 
-    crate::logger::database::initialization_check(&db_path, flag_path.exists());
+    crate::logger::info("DATABASE", &format!("Connecting to database: {}", db_path.display()), None);
 
     // Create database connection
-    crate::logger::database::connection_attempt(&db_path);
     let db = Database::new(&db_path)
         .await
-        .map_err(|e| {
-            let msg = format!("Database connection error: {}", e);
-            crate::logger::database::connection_error(&db_path, &msg);
-            msg
-        })?;
-    crate::logger::database::connection_success(&db_path);
+        .map_err(|e| format!("Database connection error: {}", e))?;
 
-    // Check if database needs initialization
-    let needs_initialization = if flag_path.exists() {
-        // Flag exists, but verify database is actually initialized by checking ALL tables
+    crate::logger::info("DATABASE", "Database connection established", None);
+
+    // Check if tables exist
+    {
         let conn = db.get_connection().await;
         let tables_exist = crate::database::schema::DatabaseSchema::check_tables_exist(&conn)
             .map_err(|e| format!("Database table check error: {}", e))?;
         
         if !tables_exist {
-            crate::logger::warn("DATABASE", "Flag file exists but tables are missing", None);
-        }
-        !tables_exist
-    } else {
-        crate::logger::info("DATABASE", "Flag file missing, initialization required", None);
-        true
-    };
-
-    if needs_initialization {
-        println!("Database not properly initialized, creating tables...");
-        crate::logger::info("DATABASE", "Starting database initialization sequence", None);
-
-        // Remove flag file if it exists (in case of partial initialization)
-        if flag_path.exists() {
-            match std::fs::remove_file(&flag_path) {
-                Ok(_) => crate::logger::database::flag_file_operation("remove", &flag_path, true),
-                Err(e) => crate::logger::error("DATABASE", &format!("Failed to remove flag file: {}", e), None),
-            }
-        }
-
-        db.initialize_database().await
-            .map_err(|e| {
-                let msg = format!("Database initialization error: {}", e);
-                crate::logger::database::creation_error(&db_path, &msg);
-                msg
-            })?;
-
-        // Create flag file to indicate initialization is complete
-        std::fs::write(&flag_path, "initialized").map_err(|e| {
-            format!("Failed to create initialization flag: {}", e)
-        })?;
-        crate::logger::database::flag_file_operation("create", &flag_path, true);
-        println!("Database initialization complete");
-        crate::logger::database::creation_success(&db_path, DATABASE_VERSION, &["all_tables"]);
-
-        // Verify schema version after initialization
-        let temp_conn = Connection::open(&db_path)
-            .map_err(|e| format!("Failed to open database for version check: {}", e))?;
-        let current_version = crate::database::schema::DatabaseSchema::get_database_version(&temp_conn)
-            .map_err(|e| format!("Failed to get database version: {}", e))?;
-
-        if current_version != DATABASE_VERSION {
-            crate::logger::warn("DATABASE", "Database schema version mismatch detected after initialization", None);
-            // This might indicate a serious issue, but we'll try to re-initialize
+            crate::logger::info("DATABASE", "Required tables missing, initializing database schema", None);
+            
+            // Initialize database schema
             db.initialize_database().await
-                .map_err(|e| format!("Database re-initialization error: {}", e))?;
-            println!("Database schema updated successfully");
+                .map_err(|e| format!("Database initialization error: {}", e))?;
+                
+            crate::logger::info("DATABASE", "Database schema initialized successfully", None);
+        } else {
+            crate::logger::info("DATABASE", "Database tables verified - schema already exists", None);
         }
-    } else {
-        crate::logger::info("DATABASE", "Database already initialized and verified", None);
     }
 
     Ok(Arc::new(tokio::sync::Mutex::new(db)))
@@ -262,11 +178,9 @@ mod tests {
     async fn test_ensure_database_ready_initializes_correctly() {
         // Setup: Clean up existing files
         let db_path = PathBuf::from(".").join("save_steward.db");
-        let flag_path = db_path.with_extension("db_initialized");
         let log_path = PathBuf::from(".").join("test_init.log");
         
         let _ = fs::remove_file(&db_path);
-        let _ = fs::remove_file(&flag_path);
         let _ = fs::remove_file(&log_path);
 
         // Setup: Configure logging to local file
@@ -287,14 +201,12 @@ mod tests {
         
         // Assert: Check files exist
         assert!(db_path.exists(), "Database file should exist");
-        assert!(flag_path.exists(), "Flag file should exist");
         assert!(log_path.exists(), "Log file should exist");
 
         // Assert: Check log content
         let log_content = fs::read_to_string(&log_path).unwrap_or_default();
-        assert!(log_content.contains("Starting database initialization sequence"), "Log should contain init sequence start");
-        assert!(log_content.contains("Database initialization complete"), "Log should contain init complete");
-        assert!(log_content.contains("all_tables"), "Log should contain table creation details");
+        assert!(log_content.contains("Required tables missing"), "Log should contain initialization trigger");
+        assert!(log_content.contains("Database schema initialized successfully"), "Log should contain init complete");
 
         // Assert: Check tables exist
         let db_mutex = result.unwrap();
@@ -306,14 +218,9 @@ mod tests {
             |row| row.get(0),
         ).unwrap_or(0);
         assert_eq!(count, 1, "Games table should exist");
-
-        // Assert: Check version
-        let version = crate::database::schema::DatabaseSchema::get_database_version(&conn).unwrap();
-        assert_eq!(version, 1, "Database version should be 1");
         
         // Cleanup
         let _ = fs::remove_file(&db_path);
-        let _ = fs::remove_file(&flag_path);
         let _ = fs::remove_file(&log_path);
     }
 }

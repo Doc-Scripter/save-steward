@@ -2,8 +2,6 @@ use rusqlite::Connection;
 use crate::database::connection::DatabaseResult;
 use crate::logger;
 
-pub const DATABASE_VERSION: u32 = 1;
-
 pub struct DatabaseSchema;
 
 impl DatabaseSchema {
@@ -27,23 +25,44 @@ impl DatabaseSchema {
         ];
         
         let mut created_tables = Vec::new();
+        let mut failed_tables = Vec::new();
+        
+        logger::info("DATABASE", &format!("Attempting to create {} tables", tables.len()), None);
         
         for (table_name, create_fn) in &tables {
             match create_fn(conn) {
                 Ok(_) => {
                     created_tables.push(*table_name);
                     crate::logger::database::table_creation(*table_name, true);
-                    logger::info("DATABASE", &format!("Successfully created table: {}", table_name), None);
+                    logger::info("DATABASE", &format!("✓ Successfully created table: {}", table_name), None);
                 }
                 Err(e) => {
+                    failed_tables.push((*table_name, e.to_string()));
                     crate::logger::database::table_creation(*table_name, false);
-                    logger::error("DATABASE", &format!("Failed to create table: {}", table_name), Some(&e.to_string()));
-                    return Err(e);
+                    logger::error("DATABASE", &format!("✗ Failed to create table '{}': {}", table_name, e), None);
+                    
+                    // Continue with next table instead of returning immediately
+                    // This helps us identify all failing tables
                 }
             }
         }
         
-        // Create indexes
+        // Report results
+        logger::info("DATABASE", &format!("Table creation summary: {} created, {} failed", created_tables.len(), failed_tables.len()), None);
+        
+        if !failed_tables.is_empty() {
+            let failed_names: Vec<&str> = failed_tables.iter().map(|(name, _)| *name).collect();
+            logger::error("DATABASE", 
+                &format!("Failed to create {} tables: {}", failed_tables.len(), failed_names.join(", ")), 
+                Some("Check the table definitions above for specific SQL errors"));
+            
+            // Only proceed with indexes if we have at least some tables created
+            if created_tables.is_empty() {
+                return Err(anyhow::anyhow!("No tables were created successfully. Cannot proceed with index creation."));
+            }
+        }
+        
+        // Create indexes (only if we have some tables)
         match Self::create_indexes(conn) {
             Ok(_) => {
                 logger::info("DATABASE", "Successfully created database indexes", None);
@@ -56,7 +75,12 @@ impl DatabaseSchema {
             }
         }
         
-        logger::info("DATABASE", "Database table creation completed successfully", Some(&format!("Created {} tables: {}", created_tables.len(), created_tables.join(", "))));
+        if failed_tables.is_empty() {
+            logger::info("DATABASE", "Database table creation completed successfully", Some(&format!("Created {} tables: {}", created_tables.len(), created_tables.join(", "))));
+        } else {
+            logger::warn("DATABASE", "Database table creation completed with failures", Some(&format!("Created {} tables, {} failed. Created: {}", created_tables.len(), failed_tables.len(), created_tables.join(", "))));
+        }
+        
         Ok(())
     }
 
@@ -401,40 +425,6 @@ impl DatabaseSchema {
         Ok(())
     }
 
-    pub fn migrate_database(conn: &Connection, from_version: u32, to_version: u32) -> DatabaseResult<()> {
-        logger::info("DATABASE", &format!("Starting database migration from v{} to v{}", from_version, to_version), None);
-        
-        // For now, just recreate tables if version mismatch
-        // In production, would implement proper migration logic
-        if from_version != to_version {
-            logger::warn("DATABASE", "Version mismatch detected, will recreate all tables", None);
-            
-            match Self::drop_tables(conn) {
-                Ok(_) => logger::info("DATABASE", "Successfully dropped existing tables", None),
-                Err(e) => {
-                    logger::error("DATABASE", "Failed to drop existing tables during migration", Some(&e.to_string()));
-                    return Err(e);
-                }
-            }
-            
-            match Self::create_tables(conn) {
-                Ok(_) => {
-                    logger::info("DATABASE", "Successfully recreated tables during migration", None);
-                    crate::logger::database::migration(from_version, to_version, true);
-                }
-                Err(e) => {
-                    logger::error("DATABASE", "Failed to recreate tables during migration", Some(&e.to_string()));
-                    crate::logger::database::migration(from_version, to_version, false);
-                    return Err(e);
-                }
-            }
-        } else {
-            logger::info("DATABASE", "No migration needed, versions match", None);
-        }
-        
-        Ok(())
-    }
-
     pub fn drop_tables(conn: &Connection) -> DatabaseResult<()> {
         logger::info("DATABASE", "Starting database table deletion", None);
         
@@ -456,8 +446,6 @@ impl DatabaseSchema {
             "pcgw_cache",
             // Core table last
             "games",
-            // Database version table
-            "db_version",
         ];
 
         let mut dropped_tables = Vec::new();
@@ -479,54 +467,6 @@ impl DatabaseSchema {
         Ok(())
     }
 
-    pub fn get_database_version(conn: &Connection) -> DatabaseResult<u32> {
-        logger::debug("DATABASE", "Retrieving database version", None);
-        
-        // Check if version table exists, if not create it
-        match conn.execute(
-            "CREATE TABLE IF NOT EXISTS db_version (version INTEGER PRIMARY KEY)",
-            [],
-        ).map(|_| ()) {
-            Ok(_) => logger::debug("DATABASE", "Ensured db_version table exists", None),
-            Err(e) => {
-                logger::error("DATABASE", "Failed to create db_version table", Some(&e.to_string()));
-                return Err(e.into());
-            }
-        }
-
-        let version: u32 = conn.query_row(
-            "SELECT version FROM db_version LIMIT 1",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(0);
-
-        if version == 0 {
-            logger::info("DATABASE", "No database version found (returning 0)", None);
-            Ok(0)
-        } else {
-            logger::debug("DATABASE", "Retrieved existing database version", Some(&format!("Current version: {}", version)));
-            Ok(version)
-        }
-    }
-
-    pub fn set_database_version(conn: &Connection, version: u32) -> DatabaseResult<()> {
-        logger::info("DATABASE", "Setting database version", Some(&format!("Setting version to {}", version)));
-        
-        match conn.execute(
-            "INSERT OR REPLACE INTO db_version (version) VALUES (?)",
-            [version],
-        ).map(|_| ()) {
-            Ok(_) => {
-                logger::info("DATABASE", "Successfully set database version", Some(&format!("Version set to {}", version)));
-                Ok(())
-            }
-            Err(e) => {
-                logger::error("DATABASE", "Failed to set database version", Some(&e.to_string()));
-                Err(e.into())
-            }
-        }
-    }
-
     pub fn check_tables_exist(conn: &Connection) -> DatabaseResult<bool> {
         logger::debug("DATABASE", "Verifying all required tables exist", None);
         
@@ -544,7 +484,6 @@ impl DatabaseSchema {
             "git_save_snapshots",
             "pcgw_cache",
             "game_pcgw_mapping",
-            "db_version",
         ];
 
         for table in &required_tables {
