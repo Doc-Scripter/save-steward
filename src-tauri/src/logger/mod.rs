@@ -9,7 +9,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Write, BufWriter};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 use once_cell::sync::Lazy;
 
 static LOGGER: Lazy<Arc<Mutex<Logger>>> = Lazy::new(|| {
