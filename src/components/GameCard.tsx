@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, History, MoreHorizontal, CheckCircle, AlertCircle, WifiOff, RefreshCw, Cloud, Edit, Trash2 } from 'lucide-react';
+import { GitSaveManager } from './GitSaveManager';
 
 export interface GameData {
   id: number;
@@ -25,6 +26,7 @@ interface GameCardProps {
 
 const GameCard: React.FC<GameCardProps> = ({ game, onLaunch, onEdit, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false);
+  const [showGitManager, setShowGitManager] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -104,22 +106,28 @@ const GameCard: React.FC<GameCardProps> = ({ game, onLaunch, onEdit, onDelete })
 
         <div className="game-actions-row">
           <button className="launch-btn" onClick={onLaunch}><Play size={14} style={{marginRight: 6, verticalAlign: 'middle'}}/> Launch</button>
-          <button className="icon-btn"><History size={16} /></button>
+          <button 
+            className={`icon-btn ${showGitManager ? 'active' : ''}`}
+            onClick={() => setShowGitManager(!showGitManager)}
+            title="Save History & Version Control"
+          >
+            <History size={16} />
+          </button>
           <div style={{ position: 'relative' }} ref={menuRef}>
-            <button className="icon-btn" onClick={() => {
-              console.log('3 dots button clicked!', 'Current showMenu:', showMenu);
-              const newShowMenu = !showMenu;
-              console.log('Setting showMenu to:', newShowMenu);
-              setShowMenu(newShowMenu);
-              console.log('showMenu state updated');
-            }}>
+            <button 
+              className="icon-btn" 
+              onClick={() => {
+                console.log('3 dots button clicked!', 'Current showMenu:', showMenu);
+                const newShowMenu = !showMenu;
+                console.log('Setting showMenu to:', newShowMenu);
+                setShowMenu(newShowMenu);
+                console.log('showMenu state updated');
+              }}
+            >
               <MoreHorizontal size={16} />
             </button>
             {showMenu && (
               <div className="dropdown-menu">
-                <div style={{ fontSize: '10px', color: 'yellow', padding: '2px', border: '1px solid yellow' }}>
-                  DEBUG: Dropdown menu rendered! showMenu = {String(showMenu)}
-                </div>
                 <button className="dropdown-item" onClick={() => { 
                   console.log('Edit Game clicked');
                   onEdit?.(); 
@@ -138,13 +146,27 @@ const GameCard: React.FC<GameCardProps> = ({ game, onLaunch, onEdit, onDelete })
                 </button>
               </div>
             )}
-            {!showMenu && (
-              <div style={{ fontSize: '10px', color: 'red', padding: '2px', position: 'absolute', top: '100%', right: 0, zIndex: 9999 }}>
-                DEBUG: Dropdown NOT rendered. showMenu = {String(showMenu)}
-              </div>
-            )}
           </div>
         </div>
+
+        {/* Git Save Manager - Expandable */}
+        {showGitManager && (
+          <div className="git-manager-container" style={{ 
+            marginTop: '1rem',
+            padding: '1rem',
+            borderTop: '1px solid var(--border-color)',
+            backgroundColor: 'var(--surface-color)',
+            borderRadius: '8px'
+          }}>
+            <GitSaveManager game={{
+              id: game.id,
+              name: game.name,
+              platform: game.platform || '',
+              executable_path: game.executablePath || '',
+              installation_path: game.installation_path || ''
+            }} />
+          </div>
+        )}
       </div>
     </div>
   );

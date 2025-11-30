@@ -209,13 +209,16 @@ export const GitSaveManager: React.FC<{ game: Game }> = ({ game }) => {
       {/* Actions */}
       <div className="git-actions">
         <div className="action-section">
-          <h4>Create Checkpoint</h4>
+          <h4>Create Save Checkpoint</h4>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+            Save current game state with a custom name
+          </p>
           <div className="input-group">
             <input
               type="text"
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
-              placeholder="Enter commit message..."
+              placeholder="Enter save name (e.g., 'Before Boss Fight')..."
               className="form-input"
             />
             <button
@@ -223,7 +226,7 @@ export const GitSaveManager: React.FC<{ game: Game }> = ({ game }) => {
               onClick={createCheckpoint}
               disabled={!commitMessage.trim() || isLoading}
             >
-              Create Checkpoint
+              {isLoading ? 'Creating...' : 'Create Checkpoint'}
             </button>
           </div>
         </div>

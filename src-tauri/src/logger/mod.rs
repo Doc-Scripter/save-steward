@@ -299,13 +299,6 @@ pub mod database {
              None);
     }
     
-    /// Log flag file operations
-    pub fn flag_file_operation(operation: &str, flag_path: &Path, success: bool) {
-        let status = if success { "success" } else { "failed" };
-        info("DATABASE", 
-             &format!("Flag file operation '{}' {}: {}", operation, status, flag_path.display()),
-             None);
-    }
 }
 
 /// Get current log configuration
