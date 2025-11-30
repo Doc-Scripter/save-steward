@@ -17,45 +17,109 @@ pub async fn add_manual_game(request: AddGameRequest) -> Result<serde_json::Valu
 #[tauri::command]
 pub async fn add_manual_game_sync(request: AddGameRequest) -> Result<serde_json::Value, String> {
     // Ensure database is ready using flag file approach
-    let db_conn = crate::database::connection::ensure_database_ready().await?;
+    let db_conn = match crate::database::connection::ensure_database_ready().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", "Failed to ensure database ready", Some(&e));
+            return Err(format!("Database unavailable: {}", e));
+        }
+    };
 
     // Add the game
-    let result = GameManager::add_manual_game(&db_conn, request).await?;
+    let result = match GameManager::add_manual_game(&db_conn, request).await {
+        Ok(r) => r,
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", "Failed to add manual game", Some(&e));
+            return Err(e);
+        }
+    };
 
-    Ok(serde_json::to_value(result).map_err(|e| format!("Serialization error: {}", e))?)
+    match serde_json::to_value(result) {
+        Ok(v) => Ok(v),
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", "Failed to serialize game result", Some(&e.to_string()));
+            Err(format!("Serialization error: {}", e))
+        }
+    }
 }
 
 #[tauri::command]
 pub async fn get_all_games() -> Result<serde_json::Value, String> {
     // Ensure database is ready using flag file approach
-    let db_conn = crate::database::connection::ensure_database_ready().await?;
+    let db_conn = match crate::database::connection::ensure_database_ready().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", "Failed to ensure database ready for get_all_games", Some(&e));
+            return Err(format!("Database unavailable: {}", e));
+        }
+    };
 
     // Get all games
-    let games = GameManager::get_all_games(&db_conn).await?;
+    let games = match GameManager::get_all_games(&db_conn).await {
+        Ok(g) => g,
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", "Failed to get all games", Some(&e));
+            return Err(e);
+        }
+    };
 
-    Ok(serde_json::to_value(games).map_err(|e| format!("Serialization error: {}", e))?)
+    match serde_json::to_value(games) {
+        Ok(v) => Ok(v),
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", "Failed to serialize games list", Some(&e.to_string()));
+            Err(format!("Serialization error: {}", e))
+        }
+    }
 }
 
 #[tauri::command]
 pub async fn update_game_sync(game_id: i64, request: AddGameRequest) -> Result<serde_json::Value, String> {
     // Ensure database is ready using flag file approach
-    let db_conn = crate::database::connection::ensure_database_ready().await?;
+    let db_conn = match crate::database::connection::ensure_database_ready().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", "Failed to ensure database ready for update_game", Some(&e));
+            return Err(format!("Database unavailable: {}", e));
+        }
+    };
 
     // Update the game
-    let result = GameManager::update_game(&db_conn, game_id, request).await?;
+    let result = match GameManager::update_game(&db_conn, game_id, request).await {
+        Ok(r) => r,
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", &format!("Failed to update game {}", game_id), Some(&e));
+            return Err(e);
+        }
+    };
 
-    Ok(serde_json::to_value(result).map_err(|e| format!("Serialization error: {}", e))?)
+    match serde_json::to_value(result) {
+        Ok(v) => Ok(v),
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", "Failed to serialize updated game", Some(&e.to_string()));
+            Err(format!("Serialization error: {}", e))
+        }
+    }
 }
 
 #[tauri::command]
 pub async fn delete_game_sync(game_id: i64) -> Result<(), String> {
     // Ensure database is ready using flag file approach
-    let db_conn = crate::database::connection::ensure_database_ready().await?;
+    let db_conn = match crate::database::connection::ensure_database_ready().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", "Failed to ensure database ready for delete_game", Some(&e));
+            return Err(format!("Database unavailable: {}", e));
+        }
+    };
 
     // Delete the game
-    GameManager::delete_game(&db_conn, game_id).await?;
-
-    Ok(())
+    match GameManager::delete_game(&db_conn, game_id).await {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            crate::logger::error("GAME_COMMAND", &format!("Failed to delete game {}", game_id), Some(&e));
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]

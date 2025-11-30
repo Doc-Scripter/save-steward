@@ -8,7 +8,7 @@ pub struct Persistence;
 impl Persistence {
     /// Insert game into database
     pub fn insert_game(tx: &rusqlite::Transaction, request: &AddGameRequest) -> Result<i64, String> {
-        tx.execute(
+        match tx.execute(
             "INSERT INTO games (name, platform, platform_app_id,
                               executable_path, installation_path, platform_executables,
                               icon_base64, icon_path, created_at, updated_at, is_active)
@@ -26,9 +26,17 @@ impl Persistence {
                 Utc::now().to_rfc3339(),
                 true,
             ],
-        ).map_err(|e| format!("Insert game error: {}", e))?;
-
-        Ok(tx.last_insert_rowid())
+        ) {
+            Ok(_) => {
+                let rowid = tx.last_insert_rowid();
+                crate::logger::info("DATABASE", &format!("Successfully inserted game '{}' into database", request.name), None);
+                Ok(rowid)
+            }
+            Err(e) => {
+                crate::logger::error("DATABASE", &format!("Failed to insert game '{}': {}", request.name, e), None);
+                Err(format!("Insert game error: {}", e))
+            }
+        }
     }
 
     /// Insert save location into database
