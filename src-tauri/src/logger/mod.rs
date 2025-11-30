@@ -342,7 +342,7 @@ mod tests {
         let log_path = temp_dir.path().join("test.log");
         
         let config = LogConfig {
-            log_file_path: log_path,
+            log_file_path: log_path.clone(),
             max_file_size_bytes: 1024 * 1024,
             max_log_files: 3,
             enable_console_output: false,
