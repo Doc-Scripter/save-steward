@@ -186,10 +186,12 @@ function AddGameModal({ isOpen, onClose, onGameAdded, editGame }: AddGameModalPr
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content" style={{ maxWidth: '600px', width: '90%' }}>
+      <div className="modal-content modal-medium">
         <div className="modal-header">
           <h2>{editGame ? "Edit Game" : "Add New Game"}</h2>
-          <button onClick={handleClose} className="close-button">×</button>
+          <button onClick={handleClose} className="modal-close-btn" title="Close">
+            <span className="close-icon">×</span>
+          </button>
         </div>
 
         {!editGame && (

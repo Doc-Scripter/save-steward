@@ -911,3 +911,177 @@ body {
   background-color: #1565c0;
   border-color: #1565c0;
 }
+
+/* Modal Header with Close Button */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.modal-close-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.close-icon {
+  font-size: 32px;
+  line-height: 1;
+  color: #ef4444;
+  font-weight: 300;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+/* Modal Size Variants */
+.modal-small {
+  max-width: 400px;
+  width: 90%;
+}
+
+.modal-medium {
+  max-width: 500px;
+  width: 90%;
+}
+
+.modal-large {
+  max-width: 700px;
+  width: 90%;
+}
+
+/* Modal Actions List (for 3-dot menu modal) */
+.modal-actions-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+}
+
+.modal-action-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: left;
+  border-radius: 6px;
+}
+
+.modal-action-item:hover {
+  background-color: var(--bg-hover);
+}
+
+.modal-action-item.danger {
+  color: var(--accent-red);
+}
+
+.modal-action-item.danger:hover {
+  background-color: rgba(213, 0, 0, 0.1);
+}
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.required {
+  color: #ef4444;
+}
+
+.error-box {
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #ef4444;
+  font-size: 14px;
+}
+
+.form-input textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+/* Responsive Modal Adjustments */
+@media (max-width: 768px) {
+  .modal-header {
+    padding: 1rem;
+  }
+  
+  .modal-body {
+    padding: 1rem;
+  }
+  
+  .modal-footer {
+    padding: 1rem;
+    flex-direction: column;
+  }
+  
+  .modal-footer .btn {
+    width: 100%;
+  }
+  
+  .modal-small,
+  .modal-medium,
+  .modal-large {
+    max-width: calc(100% - 2rem);
+    margin: 1rem;
+  }
+  
+  .close-icon {
+    font-size: 28px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-header h3 {
+    font-size: 1.1rem;
+  }
+  
+  .modal-action-item {
+    padding: 14px;
+    font-size: 15px;
+  }
+}

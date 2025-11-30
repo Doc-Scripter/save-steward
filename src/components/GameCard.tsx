@@ -26,31 +26,14 @@ interface GameCardProps {
 }
 
 const GameCard: React.FC<GameCardProps> = ({ game, onLaunch, onEdit, onDelete }) => {
-  const [showMenu, setShowMenu] = useState(false);
+  const [showActionsModal, setShowActionsModal] = useState(false);
   const [showGitManager, setShowGitManager] = useState(false);
   const [showCheckpointDialog, setShowCheckpointDialog] = useState(false);
   const [checkpointName, setCheckpointName] = useState('');
   const [checkpointDescription, setCheckpointDescription] = useState('');
   const [isCreatingCheckpoint, setIsCreatingCheckpoint] = useState(false);
   const [checkpointError, setCheckpointError] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-
-    if (showMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showMenu]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -119,97 +102,95 @@ const GameCard: React.FC<GameCardProps> = ({ game, onLaunch, onEdit, onDelete })
           >
             <History size={16} />
           </button>
-          <div style={{ position: 'relative' }} ref={menuRef}>
-            <button 
-              className="icon-btn" 
-              onClick={() => {
-                console.log('3 dots button clicked!', 'Current showMenu:', showMenu);
-                const newShowMenu = !showMenu;
-                console.log('Setting showMenu to:', newShowMenu);
-                setShowMenu(newShowMenu);
-                console.log('showMenu state updated');
-              }}
-            >
-              <MoreHorizontal size={16} />
-            </button>
-            {showMenu && (
-              <div className="dropdown-menu">
-                <button className="dropdown-item" onClick={() => { 
-                  console.log('Create Checkpoint clicked');
-                  setShowCheckpointDialog(true);
-                  setShowMenu(false); 
-                }}>
-                  <Save size={14} />
-                  <span>Create Checkpoint</span>
-                </button>
-                <button className="dropdown-item" onClick={() => { 
-                  console.log('Edit Game clicked');
-                  onEdit?.(); 
-                  setShowMenu(false); 
-                }}>
-                  <Edit size={14} />
-                  <span>Edit Game</span>
-                </button>
-                <button className="dropdown-item danger" onClick={() => { 
-                  console.log('Delete clicked');
-                  onDelete?.(); 
-                  setShowMenu(false); 
-                }}>
-                  <Trash2 size={14} />
-                  <span>Delete</span>
+          <button 
+            className="icon-btn" 
+            onClick={() => setShowActionsModal(true)}
+            title="More options"
+          >
+            <MoreHorizontal size={16} />
+          </button>
+        </div>
+
+        {/* Game Actions Modal */}
+        {showActionsModal && (
+          <div className="modal-overlay" onClick={() => setShowActionsModal(false)}>
+            <div className="modal-content modal-small" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Game Actions</h3>
+                <button className="modal-close-btn" onClick={() => setShowActionsModal(false)}
+                  title="Close">
+                  <span className="close-icon">×</span>
                 </button>
               </div>
-            )}
+              <div className="modal-actions-list">
+                <button className="modal-action-item" onClick={() => { 
+                  setShowCheckpointDialog(true);
+                  setShowActionsModal(false); 
+                }}>
+                  <Save size={18} />
+                  <span>Create Checkpoint</span>
+                </button>
+                <button className="modal-action-item" onClick={() => { 
+                  onEdit?.(); 
+                  setShowActionsModal(false); 
+                }}>
+                  <Edit size={18} />
+                  <span>Edit Game</span>
+                </button>
+                <button className="modal-action-item danger" onClick={() => { 
+                  onDelete?.(); 
+                  setShowActionsModal(false); 
+                }}>
+                  <Trash2 size={18} />
+                  <span>Delete Game</span>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Checkpoint Creation Dialog */}
         {showCheckpointDialog && (
           <div className="modal-overlay" onClick={() => setShowCheckpointDialog(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
-              maxWidth: '500px',
-              padding: '1.5rem'
-            }}>
-              <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Create Save Checkpoint</h3>
-              {checkpointError && (
-                <div style={{
-                  padding: '0.75rem',
-                  marginBottom: '1rem',
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '6px',
-                  color: '#ef4444'
-                }}>
-                  {checkpointError}
+            <div className="modal-content modal-medium" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Create Save Checkpoint</h3>
+                <button className="modal-close-btn" onClick={() => setShowCheckpointDialog(false)}
+                  title="Close">
+                  <span className="close-icon">×</span>
+                </button>
+              </div>
+              <div className="modal-body">
+                {checkpointError && (
+                  <div className="error-box">
+                    {checkpointError}
+                  </div>
+                )}
+                <div className="form-group">
+                  <label>
+                    Save Name <span className="required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={checkpointName}
+                    onChange={(e) => setCheckpointName(e.target.value)}
+                    placeholder="e.g., Before Boss Fight"
+                    className="form-input"
+                    autoFocus
+                  />
                 </div>
-              )}
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-                  Save Name <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  value={checkpointName}
-                  onChange={(e) => setCheckpointName(e.target.value)}
-                  placeholder="e.g., Before Boss Fight"
-                  className="form-input"
-                  style={{ width: '100%' }}
-                  autoFocus
-                />
+                <div className="form-group">
+                  <label>Description (optional)</label>
+                  <textarea
+                    value={checkpointDescription}
+                    onChange={(e) => setCheckpointDescription(e.target.value)}
+                    placeholder="Add any notes about this save point..."
+                    className="form-input"
+                    rows={3}
+                  />
+                </div>
               </div>
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-                  Description (optional)
-                </label>
-                <textarea
-                  value={checkpointDescription}
-                  onChange={(e) => setCheckpointDescription(e.target.value)}
-                  placeholder="Add any notes about this save point..."
-                  className="form-input"
-                  style={{ width: '100%', minHeight: '80px', resize: 'vertical' }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <div className="modal-footer">
                 <button
                   className="btn"
                   onClick={() => {
