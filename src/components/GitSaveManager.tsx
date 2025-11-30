@@ -37,7 +37,6 @@ export const GitSaveManager: React.FC<{ game: Game }> = ({ game }) => {
   const [commitMessage, setCommitMessage] = useState('');
   const [branchName, setBranchName] = useState('');
   const [branchDescription, setBranchDescription] = useState('');
-  const [selectedCommit, setSelectedCommit] = useState('');
 
   useEffect(() => {
     loadGitHistory();

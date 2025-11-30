@@ -48,7 +48,7 @@ function AddGameModal({ isOpen, onClose, onGameAdded, editGame }: AddGameModalPr
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedGame, setSelectedGame] = useState<any>(null);
+  const [, setSelectedGame] = useState<any>(null);
 
   // Update form when editGame changes
   useEffect(() => {
