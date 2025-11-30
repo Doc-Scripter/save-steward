@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, History, MoreHorizontal, CheckCircle, AlertCircle, WifiOff, RefreshCw, Cloud, Edit, Trash2 } from 'lucide-react';
+import { Play, History, MoreHorizontal, CheckCircle, AlertCircle, WifiOff, RefreshCw, Cloud, Edit, Trash2, Save } from 'lucide-react';
 import { GitSaveManager } from './GitSaveManager';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface GameData {
   id: number;
@@ -27,6 +28,11 @@ interface GameCardProps {
 const GameCard: React.FC<GameCardProps> = ({ game, onLaunch, onEdit, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showGitManager, setShowGitManager] = useState(false);
+  const [showCheckpointDialog, setShowCheckpointDialog] = useState(false);
+  const [checkpointName, setCheckpointName] = useState('');
+  const [checkpointDescription, setCheckpointDescription] = useState('');
+  const [isCreatingCheckpoint, setIsCreatingCheckpoint] = useState(false);
+  const [checkpointError, setCheckpointError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -129,6 +135,14 @@ const GameCard: React.FC<GameCardProps> = ({ game, onLaunch, onEdit, onDelete })
             {showMenu && (
               <div className="dropdown-menu">
                 <button className="dropdown-item" onClick={() => { 
+                  console.log('Create Checkpoint clicked');
+                  setShowCheckpointDialog(true);
+                  setShowMenu(false); 
+                }}>
+                  <Save size={14} />
+                  <span>Create Checkpoint</span>
+                </button>
+                <button className="dropdown-item" onClick={() => { 
                   console.log('Edit Game clicked');
                   onEdit?.(); 
                   setShowMenu(false); 
@@ -148,6 +162,104 @@ const GameCard: React.FC<GameCardProps> = ({ game, onLaunch, onEdit, onDelete })
             )}
           </div>
         </div>
+
+        {/* Checkpoint Creation Dialog */}
+        {showCheckpointDialog && (
+          <div className="modal-overlay" onClick={() => setShowCheckpointDialog(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+              maxWidth: '500px',
+              padding: '1.5rem'
+            }}>
+              <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Create Save Checkpoint</h3>
+              {checkpointError && (
+                <div style={{
+                  padding: '0.75rem',
+                  marginBottom: '1rem',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '6px',
+                  color: '#ef4444'
+                }}>
+                  {checkpointError}
+                </div>
+              )}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                  Save Name <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={checkpointName}
+                  onChange={(e) => setCheckpointName(e.target.value)}
+                  placeholder="e.g., Before Boss Fight"
+                  className="form-input"
+                  style={{ width: '100%' }}
+                  autoFocus
+                />
+              </div>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                  Description (optional)
+                </label>
+                <textarea
+                  value={checkpointDescription}
+                  onChange={(e) => setCheckpointDescription(e.target.value)}
+                  placeholder="Add any notes about this save point..."
+                  className="form-input"
+                  style={{ width: '100%', minHeight: '80px', resize: 'vertical' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setShowCheckpointDialog(false);
+                    setCheckpointName('');
+                    setCheckpointDescription('');
+                    setCheckpointError(null);
+                  }}
+                  disabled={isCreatingCheckpoint}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    if (!checkpointName.trim()) {
+                      setCheckpointError('Please enter a save name');
+                      return;
+                    }
+                    try {
+                      setIsCreatingCheckpoint(true);
+                      setCheckpointError(null);
+                      const message = checkpointDescription.trim() 
+                        ? `${checkpointName}\n\n${checkpointDescription}`
+                        : checkpointName;
+                      await invoke('create_save_checkpoint', {
+                        gameId: game.id,
+                        message
+                      });
+                      setShowCheckpointDialog(false);
+                      setCheckpointName('');
+                      setCheckpointDescription('');
+                      // Refresh git history if it's visible
+                      if (showGitManager) {
+                        window.location.reload(); // Simple refresh for now
+                      }
+                    } catch (err) {
+                      setCheckpointError(`Failed to create checkpoint: ${err}`);
+                    } finally {
+                      setIsCreatingCheckpoint(false);
+                    }
+                  }}
+                  disabled={!checkpointName.trim() || isCreatingCheckpoint}
+                >
+                  {isCreatingCheckpoint ? 'Creating...' : 'Create Checkpoint'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Git Save Manager - Expandable */}
         {showGitManager && (

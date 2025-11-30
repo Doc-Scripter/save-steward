@@ -34,9 +34,6 @@ export const GitSaveManager: React.FC<{ game: Game }> = ({ game }) => {
   const [gitHistory, setGitHistory] = useState<GitHistoryItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [commitMessage, setCommitMessage] = useState('');
-  const [branchName, setBranchName] = useState('');
-  const [branchDescription, setBranchDescription] = useState('');
 
   useEffect(() => {
     loadGitHistory();
@@ -67,46 +64,6 @@ export const GitSaveManager: React.FC<{ game: Game }> = ({ game }) => {
       await loadGitHistory();
     } catch (err) {
       setError(`Failed to enable Git: ${err}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const createCheckpoint = async () => {
-    if (!commitMessage.trim()) return;
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      await invoke('create_save_checkpoint', {
-        gameId: game.id,
-        message: commitMessage
-      });
-      setCommitMessage('');
-      await loadGitHistory();
-    } catch (err) {
-      setError(`Failed to create checkpoint: ${err}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const createBranch = async () => {
-    if (!branchName.trim()) return;
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      await invoke('create_save_branch', {
-        gameId: game.id,
-        branchName,
-        description: branchDescription || undefined
-      });
-      setBranchName('');
-      setBranchDescription('');
-      await loadGitHistory();
-    } catch (err) {
-      setError(`Failed to create branch: ${err}`);
     } finally {
       setIsLoading(false);
     }
@@ -190,7 +147,7 @@ export const GitSaveManager: React.FC<{ game: Game }> = ({ game }) => {
 
   return (
     <div className="git-save-manager">
-      <h3>Git Save Versioning</h3>
+      <h3>Save History</h3>
       {error && <div className="error">{error}</div>}
       
       {/* Current Status */}
@@ -208,56 +165,6 @@ export const GitSaveManager: React.FC<{ game: Game }> = ({ game }) => {
 
       {/* Actions */}
       <div className="git-actions">
-        <div className="action-section">
-          <h4>Create Save Checkpoint</h4>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-            Save current game state with a custom name
-          </p>
-          <div className="input-group">
-            <input
-              type="text"
-              value={commitMessage}
-              onChange={(e) => setCommitMessage(e.target.value)}
-              placeholder="Enter save name (e.g., 'Before Boss Fight')..."
-              className="form-input"
-            />
-            <button
-              className="btn btn-primary"
-              onClick={createCheckpoint}
-              disabled={!commitMessage.trim() || isLoading}
-            >
-              {isLoading ? 'Creating...' : 'Create Checkpoint'}
-            </button>
-          </div>
-        </div>
-
-        <div className="action-section">
-          <h4>Create Branch</h4>
-          <div className="input-group">
-            <input
-              type="text"
-              value={branchName}
-              onChange={(e) => setBranchName(e.target.value)}
-              placeholder="Branch name..."
-              className="form-input"
-            />
-            <input
-              type="text"
-              value={branchDescription}
-              onChange={(e) => setBranchDescription(e.target.value)}
-              placeholder="Description (optional)..."
-              className="form-input"
-            />
-            <button
-              className="btn btn-secondary"
-              onClick={createBranch}
-              disabled={!branchName.trim() || isLoading}
-            >
-              Create Branch
-            </button>
-          </div>
-        </div>
-
         <div className="action-section">
           <button
             className="btn btn-info"
