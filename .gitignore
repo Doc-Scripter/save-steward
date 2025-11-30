@@ -47,3 +47,7 @@ build/
 
 # gamefiles
 The Radio Tower - Linux
+
+#sql files
+save_steward.db
+save_steward.db_initialized
