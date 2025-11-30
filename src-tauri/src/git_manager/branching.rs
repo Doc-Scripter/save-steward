@@ -30,8 +30,27 @@ pub async fn create_save_checkpoint(
             })?
     };
 
-    // Create branch name: gamename-save-name
-    let branch_name = format!("{}-{}", game_name, save_name);
+    // Sanitize the branch name: replace spaces and invalid characters with dashes
+    // Git branch names cannot contain spaces, ~, ^, :, ?, *, [, \, or ASCII control characters
+    let sanitize_branch_name = |name: &str| -> String {
+        name.chars()
+            .map(|c| {
+                if c.is_whitespace() || c == '~' || c == '^' || c == ':' || c == '?' || c == '*' || c == '[' || c == '\\' {
+                    '-'
+                } else {
+                    c
+                }
+            })
+            .collect::<String>()
+            // Remove consecutive dashes
+            .split('-')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<&str>>()
+            .join("-")
+    };
+
+    // Create branch name: gamename-save-name (sanitized)
+    let branch_name = sanitize_branch_name(&format!("{}-{}", game_name, save_name));
     crate::logger::info("GIT_BRANCHING", &format!("Branch name: {}", branch_name), None);
     
     // Check if branch exists (outside git2 scope so we can use it later)
