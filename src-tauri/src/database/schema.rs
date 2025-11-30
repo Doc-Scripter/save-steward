@@ -1,5 +1,6 @@
 use rusqlite::Connection;
 use crate::database::connection::DatabaseResult;
+use crate::logger;
 
 pub const DATABASE_VERSION: u32 = 1;
 
@@ -7,7 +8,59 @@ pub struct DatabaseSchema;
 
 impl DatabaseSchema {
     pub fn create_tables(conn: &Connection) -> DatabaseResult<()> {
-        // Create games table
+        logger::info("DATABASE", "Starting database table creation", None);
+        
+        let tables: [(&str, fn(&Connection) -> DatabaseResult<()>); 13] = [
+            ("games", Self::create_games_table),
+            ("save_locations", Self::create_save_locations_table),
+            ("detected_saves", Self::create_detected_saves_table),
+            ("save_versions", Self::create_save_versions_table),
+            ("game_identifiers", Self::create_game_identifiers_table),
+            ("user_games", Self::create_user_games_table),
+            ("git_repositories", Self::create_git_repositories_table),
+            ("git_save_commits", Self::create_git_save_commits_table),
+            ("git_branches", Self::create_git_branches_table),
+            ("cloud_sync_log", Self::create_cloud_sync_log_table),
+            ("git_save_snapshots", Self::create_git_save_snapshots_table),
+            ("pcgw_cache", Self::create_pcgw_cache_table),
+            ("game_pcgw_mapping", Self::create_game_pcgw_mapping_table),
+        ];
+        
+        let mut created_tables = Vec::new();
+        
+        for (table_name, create_fn) in &tables {
+            match create_fn(conn) {
+                Ok(_) => {
+                    created_tables.push(*table_name);
+                    crate::logger::database::table_creation(*table_name, true);
+                    logger::info("DATABASE", &format!("Successfully created table: {}", table_name), None);
+                }
+                Err(e) => {
+                    crate::logger::database::table_creation(*table_name, false);
+                    logger::error("DATABASE", &format!("Failed to create table: {}", table_name), Some(&e.to_string()));
+                    return Err(e);
+                }
+            }
+        }
+        
+        // Create indexes
+        match Self::create_indexes(conn) {
+            Ok(_) => {
+                logger::info("DATABASE", "Successfully created database indexes", None);
+                crate::logger::database::index_creation("all_indexes", true);
+            }
+            Err(e) => {
+                crate::logger::database::index_creation("all_indexes", false);
+                logger::error("DATABASE", "Failed to create database indexes", Some(&e.to_string()));
+                return Err(e);
+            }
+        }
+        
+        logger::info("DATABASE", "Database table creation completed successfully", Some(&format!("Created {} tables: {}", created_tables.len(), created_tables.join(", "))));
+        Ok(())
+    }
+
+    fn create_games_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS games (
@@ -31,9 +84,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating games table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create save_locations table
+    fn create_save_locations_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS save_locations (
@@ -56,9 +113,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating save_locations table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create detected_saves table
+    fn create_detected_saves_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS detected_saves (
@@ -78,9 +139,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating detected_saves table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create save_versions table
+    fn create_save_versions_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS save_versions (
@@ -99,9 +164,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating save_versions table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create game_identifiers table
+    fn create_game_identifiers_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS game_identifiers (
@@ -117,9 +186,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating game_identifiers table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create user_games table
+    fn create_user_games_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS user_games (
@@ -139,9 +212,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating user_games table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create Git repositories table
+    fn create_git_repositories_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS git_repositories (
@@ -160,9 +237,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating git_repositories table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create Git save commits table
+    fn create_git_save_commits_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS git_save_commits (
@@ -180,9 +261,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating git_save_commits table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create Git branches table
+    fn create_git_branches_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS git_branches (
@@ -198,9 +283,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating git_branches table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create cloud sync log table
+    fn create_cloud_sync_log_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS cloud_sync_log (
@@ -216,9 +305,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating cloud_sync_log table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create Git save snapshots table
+    fn create_git_save_snapshots_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS git_save_snapshots (
@@ -237,9 +330,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating git_save_snapshots table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create PCGamingWiki cache table
+    fn create_pcgw_cache_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS pcgw_cache (
@@ -250,9 +347,13 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating pcgw_cache table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
+    }
 
-        // Create game_pcgw_mapping table
+    fn create_game_pcgw_mapping_table(conn: &Connection) -> DatabaseResult<()> {
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS game_pcgw_mapping (
@@ -263,69 +364,80 @@ impl DatabaseSchema {
             )
             "#,
             [],
-        )?;
-
-        // Create indexes for performance
-        Self::create_indexes(conn)?;
-
-        Ok(())
+        ).map_err(|e| {
+            logger::error("DATABASE", "Error creating game_pcgw_mapping table", Some(&e.to_string()));
+            e.into()
+        }).map(|_| ())
     }
 
     fn create_indexes(conn: &Connection) -> DatabaseResult<()> {
-        // Game lookup indexes
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_games_platform_app_id ON games(platform, platform_app_id)",
-            [],
-        )?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_games_name ON games(name)",
-            [],
-        )?;
-
-        // Save location indexes
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_save_locations_game_id ON save_locations(game_id)",
-            [],
-        )?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_save_locations_platform ON save_locations(platform)",
-            [],
-        )?;
-
-        // Version history indexes
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_save_versions_detected_save_id ON save_versions(detected_save_id)",
-            [],
-        )?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_save_versions_created_at ON save_versions(created_at)",
-            [],
-        )?;
-
-        // Identifier indexes
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_game_identifiers_type_value ON game_identifiers(identifier_type, identifier_value)",
-            [],
-        )?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_game_identifiers_game_id ON game_identifiers(game_id)",
-            [],
-        )?;
-
+        logger::debug("DATABASE", "Creating database indexes", None);
+        
+        let indexes = [
+            ("idx_games_platform_app_id", "CREATE INDEX IF NOT EXISTS idx_games_platform_app_id ON games(platform, platform_app_id)"),
+            ("idx_games_name", "CREATE INDEX IF NOT EXISTS idx_games_name ON games(name)"),
+            ("idx_save_locations_game_id", "CREATE INDEX IF NOT EXISTS idx_save_locations_game_id ON save_locations(game_id)"),
+            ("idx_save_locations_platform", "CREATE INDEX IF NOT EXISTS idx_save_locations_platform ON save_locations(platform)"),
+            ("idx_save_versions_detected_save_id", "CREATE INDEX IF NOT EXISTS idx_save_versions_detected_save_id ON save_versions(detected_save_id)"),
+            ("idx_save_versions_created_at", "CREATE INDEX IF NOT EXISTS idx_save_versions_created_at ON save_versions(created_at)"),
+            ("idx_game_identifiers_type_value", "CREATE INDEX IF NOT EXISTS idx_game_identifiers_type_value ON game_identifiers(identifier_type, identifier_value)"),
+            ("idx_game_identifiers_game_id", "CREATE INDEX IF NOT EXISTS idx_game_identifiers_game_id ON game_identifiers(game_id)"),
+        ];
+        
+        for (index_name, sql) in &indexes {
+            match conn.execute(sql, []) {
+                Ok(_) => {
+                    logger::debug("DATABASE", &format!("Successfully created index: {}", index_name), None);
+                }
+                Err(e) => {
+                    logger::error("DATABASE", &format!("Failed to create index: {}", index_name), Some(&e.to_string()));
+                    crate::logger::database::index_creation(index_name, false);
+                    return Err(e.into());
+                }
+            }
+        }
+        
+        crate::logger::database::index_creation("all_indexes", true);
         Ok(())
     }
 
     pub fn migrate_database(conn: &Connection, from_version: u32, to_version: u32) -> DatabaseResult<()> {
+        logger::info("DATABASE", &format!("Starting database migration from v{} to v{}", from_version, to_version), None);
+        
         // For now, just recreate tables if version mismatch
         // In production, would implement proper migration logic
         if from_version != to_version {
-            Self::drop_tables(conn)?;
-            Self::create_tables(conn)?;
+            logger::warn("DATABASE", "Version mismatch detected, will recreate all tables", None);
+            
+            match Self::drop_tables(conn) {
+                Ok(_) => logger::info("DATABASE", "Successfully dropped existing tables", None),
+                Err(e) => {
+                    logger::error("DATABASE", "Failed to drop existing tables during migration", Some(&e.to_string()));
+                    return Err(e);
+                }
+            }
+            
+            match Self::create_tables(conn) {
+                Ok(_) => {
+                    logger::info("DATABASE", "Successfully recreated tables during migration", None);
+                    crate::logger::database::migration(from_version, to_version, true);
+                }
+                Err(e) => {
+                    logger::error("DATABASE", "Failed to recreate tables during migration", Some(&e.to_string()));
+                    crate::logger::database::migration(from_version, to_version, false);
+                    return Err(e);
+                }
+            }
+        } else {
+            logger::info("DATABASE", "No migration needed, versions match", None);
         }
+        
         Ok(())
     }
 
     pub fn drop_tables(conn: &Connection) -> DatabaseResult<()> {
+        logger::info("DATABASE", "Starting database table deletion", None);
+        
         let tables = [
             // Git-related tables (in reverse dependency order)
             "git_save_snapshots",
@@ -348,19 +460,39 @@ impl DatabaseSchema {
             "db_version",
         ];
 
+        let mut dropped_tables = Vec::new();
+        
         for table in &tables {
-            conn.execute(&format!("DROP TABLE IF EXISTS {}", table), [])?;
+            match conn.execute(&format!("DROP TABLE IF EXISTS {}", table), []) {
+                Ok(_) => {
+                    dropped_tables.push(*table);
+                    logger::debug("DATABASE", &format!("Successfully dropped table: {}", table), None);
+                }
+                Err(e) => {
+                    logger::error("DATABASE", &format!("Failed to drop table: {}", table), Some(&e.to_string()));
+                    return Err(e.into());
+                }
+            }
         }
 
+        logger::info("DATABASE", "Database table deletion completed", Some(&format!("Dropped {} tables: {}", dropped_tables.len(), dropped_tables.join(", "))));
         Ok(())
     }
 
     pub fn get_database_version(conn: &Connection) -> DatabaseResult<u32> {
+        logger::debug("DATABASE", "Retrieving database version", None);
+        
         // Check if version table exists, if not create it
-        conn.execute(
+        match conn.execute(
             "CREATE TABLE IF NOT EXISTS db_version (version INTEGER PRIMARY KEY)",
             [],
-        )?;
+        ).map(|_| ()) {
+            Ok(_) => logger::debug("DATABASE", "Ensured db_version table exists", None),
+            Err(e) => {
+                logger::error("DATABASE", "Failed to create db_version table", Some(&e.to_string()));
+                return Err(e.into());
+            }
+        }
 
         let version: u32 = conn.query_row(
             "SELECT version FROM db_version LIMIT 1",
@@ -370,21 +502,40 @@ impl DatabaseSchema {
 
         // If no version exists, set it to current version
         if version == 0 {
-            conn.execute(
+            match conn.execute(
                 "INSERT OR REPLACE INTO db_version (version) VALUES (?)",
                 [DATABASE_VERSION],
-            )?;
-            Ok(DATABASE_VERSION)
+            ).map(|_| ()) {
+                Ok(_) => {
+                    logger::info("DATABASE", "Initialized database version", Some(&format!("Set version to {}", DATABASE_VERSION)));
+                    Ok(DATABASE_VERSION)
+                }
+                Err(e) => {
+                    logger::error("DATABASE", "Failed to set initial database version", Some(&e.to_string()));
+                    Err(e.into())
+                }
+            }
         } else {
+            logger::debug("DATABASE", "Retrieved existing database version", Some(&format!("Current version: {}", version)));
             Ok(version)
         }
     }
 
     pub fn set_database_version(conn: &Connection, version: u32) -> DatabaseResult<()> {
-        conn.execute(
+        logger::info("DATABASE", "Setting database version", Some(&format!("Setting version to {}", version)));
+        
+        match conn.execute(
             "INSERT OR REPLACE INTO db_version (version) VALUES (?)",
             [version],
-        )?;
-        Ok(())
+        ).map(|_| ()) {
+            Ok(_) => {
+                logger::info("DATABASE", "Successfully set database version", Some(&format!("Version set to {}", version)));
+                Ok(())
+            }
+            Err(e) => {
+                logger::error("DATABASE", "Failed to set database version", Some(&e.to_string()));
+                Err(e.into())
+            }
+        }
     }
 }

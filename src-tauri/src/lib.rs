@@ -7,25 +7,38 @@ mod launch_utils;
 mod git_manager;
 mod pcgaming_wiki;
 mod commands;
+mod logger;
 
-use crate::database::connection::{EncryptedDatabase, DatabasePaths};
+use crate::database::connection::{Database, DatabasePaths};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize logging system
+    crate::logger::initialize_logging()
+        .expect("Failed to initialize logging system");
+    
+    crate::logger::info("APP", "Starting Save-Steward application", None);
+    
     // Initialize database at startup - app waits for this to complete
-    println!("Initializing database...");
+    crate::logger::info("APP", "Initializing database", None);
     let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     runtime.block_on(async {
         let db_path = DatabasePaths::database_file();
-        let db = EncryptedDatabase::new(&db_path, "default_password")
+        
+        crate::logger::database::connection_attempt(&db_path);
+        let db = Database::new(&db_path)
             .await
             .expect("Failed to connect to database - cannot start application");
 
+        crate::logger::database::connection_success(&db_path);
+        crate::logger::database::schema_creation_start();
+        
         db.initialize_database()
             .await
             .expect("Failed to initialize database schema - cannot start application");
 
-        println!("Database initialization complete");
+        crate::logger::database::schema_creation_success();
+        crate::logger::info("APP", "Database initialization complete", None);
     });
 
     tauri::Builder::default()
