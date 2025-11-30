@@ -95,6 +95,7 @@ jobs:
             libwebkit2gtk-4.0-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
+            librsvg2-bin \
             libssl-dev \
             pkg-config \
             build-essential \
@@ -133,6 +134,14 @@ jobs:
           releaseDraft: false
           prerelease: false
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: save-steward-${{ matrix.target }}
+          path: |
+            src-tauri/target/release/bundle/**
+            !src-tauri/target/release/bundle/.cargo-registry/
+
   release:
     name: Create Release
     runs-on: ubuntu-latest
@@ -142,10 +151,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v3
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: save-steward_${{ github.run_number }}
           path: ./artifacts
 
       - name: Extract version from Cargo.toml
@@ -153,6 +161,15 @@ jobs:
         run: |
           VERSION=$(grep '^version = ' src-tauri/Cargo.toml | sed 's/version = "\(.*\)"/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Prepare artifacts for release
+        run: |
+          # Find all artifacts and prepare them for release
+          find ./artifacts -type f -name "*.msi" -o -name "*.dmg" -o -name "*.AppImage" | head -10
+          
+          # Create a simple directory structure for release
+          mkdir -p release-files
+          find ./artifacts -type f \( -name "*.msi" -o -name "*.dmg" -o -name "*.AppImage" \) -exec cp {} release-files/ \;
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -174,7 +191,7 @@ jobs:
             - **Linux (x64)**: `save-steward_${ { steps.version.outputs.version } }_x86_64.AppImage`
             - **Linux (ARM64)**: `save-steward_${ { steps.version.outputs.version } }_aarch64.AppImage`
           files: |
-            ./artifacts/*
+            release-files/*
           draft: false
           prerelease: false
         env:
@@ -205,6 +222,7 @@ jobs:
             libwebkit2gtk-4.0-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
+            librsvg2-bin \
             libssl-dev \
             pkg-config \
             build-essential \
@@ -220,7 +238,7 @@ jobs:
         run: npm run tauri build
 
       - name: Upload test artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-build-artifacts
           path: src-tauri/target/release/bundle/
