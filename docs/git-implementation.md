@@ -95,6 +95,14 @@ CREATE TABLE git_branches (
 );
 ```
 
+**Important**: Branch names are stored in the database for:
+- Tracking which branch is active for each game
+- Maintaining branch metadata (descriptions, creation timestamps)
+- Efficient querying of branches by game
+- Ensuring data consistency between Git operations and local state
+
+**Database Integration**: When a save checkpoint is created, the resulting branch name (game-name-save-name) is stored in the `git_branches` table alongside the game ID, allowing efficient queries and state management.
+
 ## Operations
 
 ### Creating a Save Checkpoint
@@ -104,21 +112,47 @@ CREATE TABLE git_branches (
 3. **Generate Branch Name**: Format as `game-name-save-name`
    - **Game Name**: Retrieved from database (e.g., "Skyrim")
    - **Save Name**: User input from UI (e.g., "Main Quest - Dragonbane")
-   - **Final Branch**: "Skyrim-Main-Quest-Dragonbane"
+   - **Final Branch**: "Skyrim-Main Quest - Dragonbane"
 4. **Check Existence**: If branch exists, switch to it instead of creating
 5. **Create Branch**: Fork from current HEAD
 6. **Checkout**: Set working directory to new branch
-7. **Update Database**: Mark branch as active for game
+7. **Update Database**: Store branch name and mark as active for game
 
+**Data Flow:**
+```typescript
+// Frontend: User only enters save name
+await invoke('create_save_checkpoint', {
+  gameId: 123,
+  message: 'Main Quest - Dragonbane'  // User input only
+});
+```
 
-
+```rust
+// Backend: Game name comes from database
+pub async fn create_save_checkpoint(
+    db: &std::sync::Arc<tokio::sync::Mutex<Database>>,
+    master_repo_path: &str,
+    game_id: i64, 
+    save_name: &str  // User input from UI
+) -> Result<String, String> {
+    // Query game name from database
+    let game_name = { /* SELECT name FROM games WHERE id = ? */ };
+    
+    // Construct branch name: game-name-save-name
+    let branch_name = format!("{}-{}", game_name, save_name);
+    // Result: "Skyrim-Main Quest - Dragonbane"
+    
+    // Store branch name in database
+    save_branch_info(db, game_id, &branch_name, None).await?;
+}
+```
 
 ### Switching Branches
 
 1. **Find Branch**: Locate Git branch by name
 2. **Checkout**: Update working directory
 3. **Set HEAD**: Point repository HEAD to branch
-4. **Update Database**: Mark branch as active
+4. **Update Database**: Update active branch state
 
 ### Restoring to Commit
 
@@ -229,7 +263,7 @@ CREATE TABLE git_branches (
 
 ### Rust Functions
 - `GitSaveManager::new(db)`: Create new manager instance
-- `initialize_master_repo()``: Set up main Git repository
+- `initialize_master_repo()`: Set up main Git repository
 - `create_save_checkpoint()`: Create save branch
 - `get_save_history()`: Retrieve commit history
 - `list_all_branches()`: Get all repository branches
