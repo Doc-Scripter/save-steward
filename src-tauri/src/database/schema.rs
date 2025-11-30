@@ -500,21 +500,9 @@ impl DatabaseSchema {
             |row| row.get(0),
         ).unwrap_or(0);
 
-        // If no version exists, set it to current version
         if version == 0 {
-            match conn.execute(
-                "INSERT OR REPLACE INTO db_version (version) VALUES (?)",
-                [DATABASE_VERSION],
-            ).map(|_| ()) {
-                Ok(_) => {
-                    logger::info("DATABASE", "Initialized database version", Some(&format!("Set version to {}", DATABASE_VERSION)));
-                    Ok(DATABASE_VERSION)
-                }
-                Err(e) => {
-                    logger::error("DATABASE", "Failed to set initial database version", Some(&e.to_string()));
-                    Err(e.into())
-                }
-            }
+            logger::info("DATABASE", "No database version found (returning 0)", None);
+            Ok(0)
         } else {
             logger::debug("DATABASE", "Retrieved existing database version", Some(&format!("Current version: {}", version)));
             Ok(version)
@@ -537,5 +525,42 @@ impl DatabaseSchema {
                 Err(e.into())
             }
         }
+    }
+
+    pub fn check_tables_exist(conn: &Connection) -> DatabaseResult<bool> {
+        logger::debug("DATABASE", "Verifying all required tables exist", None);
+        
+        let required_tables = [
+            "games",
+            "save_locations",
+            "detected_saves",
+            "save_versions",
+            "game_identifiers",
+            "user_games",
+            "git_repositories",
+            "git_save_commits",
+            "git_branches",
+            "cloud_sync_log",
+            "git_save_snapshots",
+            "pcgw_cache",
+            "game_pcgw_mapping",
+            "db_version",
+        ];
+
+        for table in &required_tables {
+            let count: i64 = conn.query_row(
+                "SELECT count(name) FROM sqlite_master WHERE type='table' AND name=?",
+                [table],
+                |row| row.get(0),
+            ).unwrap_or(0);
+
+            if count == 0 {
+                logger::warn("DATABASE", &format!("Missing required table: {}", table), None);
+                return Ok(false);
+            }
+        }
+
+        logger::debug("DATABASE", "All required tables verified", None);
+        Ok(true)
     }
 }
