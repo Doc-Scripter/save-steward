@@ -100,20 +100,18 @@ CREATE TABLE git_branches (
 ### Creating a Save Checkpoint
 
 1. **Get Game Name**: Query database for game name by ID
-2. **Generate Branch Name**: Format as `game-name-save-name`
-3. **Check Existence**: If branch exists, switch to it
-4. **Create Branch**: Fork from current HEAD
-5. **Checkout**: Set working directory to new branch
-6. **Update Database**: Mark branch as active for game
+2. **User Input**: User provides only the save name via UI
+3. **Generate Branch Name**: Format as `game-name-save-name`
+   - **Game Name**: Retrieved from database (e.g., "Skyrim")
+   - **Save Name**: User input from UI (e.g., "Main Quest - Dragonbane")
+   - **Final Branch**: "Skyrim-Main-Quest-Dragonbane"
+4. **Check Existence**: If branch exists, switch to it instead of creating
+5. **Create Branch**: Fork from current HEAD
+6. **Checkout**: Set working directory to new branch
+7. **Update Database**: Mark branch as active for game
 
-```rust
-pub async fn create_save_checkpoint(
-    db: &std::sync::Arc<tokio::sync::Mutex<Database>>,
-    master_repo_path: &str,
-    game_id: i64, 
-    save_name: &str
-) -> Result<String, String>
-```
+
+
 
 ### Switching Branches
 
@@ -231,7 +229,7 @@ pub async fn create_save_checkpoint(
 
 ### Rust Functions
 - `GitSaveManager::new(db)`: Create new manager instance
-- `initialize_master_repo()`: Set up main Git repository
+- `initialize_master_repo()``: Set up main Git repository
 - `create_save_checkpoint()`: Create save branch
 - `get_save_history()`: Retrieve commit history
 - `list_all_branches()`: Get all repository branches
