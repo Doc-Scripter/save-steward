@@ -20,8 +20,8 @@ pub async fn create_save_checkpoint(
             .map_err(|e| format!("Failed to get game name: {}", e))?
     };
 
-    // Create branch name: gamename+save-name
-    let branch_name = format!("{}+{}", game_name, save_name);
+    // Create branch name: gamename-save-name
+    let branch_name = format!("{}-{}", game_name, save_name);
     
     // Perform git operations in a synchronous block or scope
     // Since git2 is synchronous, we can just do it here.
@@ -136,10 +136,10 @@ pub async fn list_all_branches(master_repo_path: &str) -> Result<Vec<String>, St
 pub async fn get_game_branches(master_repo_path: &str, game_name: &str) -> Result<Vec<String>, String> {
     let all_branches = list_all_branches(master_repo_path).await?;
     
-    // Filter branches that start with the game name
+    // Filter branches that start with the game name followed by '-'
     let game_branches: Vec<String> = all_branches
         .into_iter()
-        .filter(|branch| branch.starts_with(&format!("{}+", game_name)))
+        .filter(|branch| branch.starts_with(&format!("{}-", game_name)))
         .collect();
 
     Ok(game_branches)
