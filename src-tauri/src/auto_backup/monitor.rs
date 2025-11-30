@@ -1,14 +1,14 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use tokio::time::{interval, timeout};
+use tokio::time::interval;
 use notify::RecommendedWatcher;
 use notify::RecursiveMode;
 use notify::Watcher;
 
-use crate::auto_backup::{BackupEvent, BackupType, BackupError, BackupResult};
+use crate::auto_backup::{BackupEvent, BackupType, BackupResult};
 
 /// Handles real-time monitoring of save file directories
 pub struct SaveMonitor {

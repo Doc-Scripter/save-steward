@@ -1,6 +1,6 @@
 use crate::detection::{
     ProcessInfo, IdentificationEvidence, GameIdentification, GameCandidate,
-    IdentificationConfidence, DetectionError, process_monitor::ProcessMonitor,
+    DetectionError, process_monitor::ProcessMonitor,
     executable_analysis::ExecutableAnalyzer, platform::PlatformApiClient,
     runtime_detection::RuntimeDetector, confidence_scorer::ConfidenceScorer
 };

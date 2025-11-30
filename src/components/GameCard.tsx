@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, History, MoreHorizontal, CheckCircle, AlertCircle, WifiOff, RefreshCw, Cloud, Edit, Trash2 } from 'lucide-react';
+import { Play, History, MoreHorizontal, CheckCircle, AlertCircle, WifiOff, RefreshCw, Cloud, Edit, Trash2, Save } from 'lucide-react';
+import { GitSaveManager } from './GitSaveManager';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface GameData {
   id: number;
@@ -24,25 +26,14 @@ interface GameCardProps {
 }
 
 const GameCard: React.FC<GameCardProps> = ({ game, onLaunch, onEdit, onDelete }) => {
-  const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [showActionsModal, setShowActionsModal] = useState(false);
+  const [showGitManager, setShowGitManager] = useState(false);
+  const [showCheckpointDialog, setShowCheckpointDialog] = useState(false);
+  const [checkpointName, setCheckpointName] = useState('');
+  const [checkpointDescription, setCheckpointDescription] = useState('');
+  const [isCreatingCheckpoint, setIsCreatingCheckpoint] = useState(false);
+  const [checkpointError, setCheckpointError] = useState<string | null>(null);
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-
-    if (showMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showMenu]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -104,47 +95,171 @@ const GameCard: React.FC<GameCardProps> = ({ game, onLaunch, onEdit, onDelete })
 
         <div className="game-actions-row">
           <button className="launch-btn" onClick={onLaunch}><Play size={14} style={{marginRight: 6, verticalAlign: 'middle'}}/> Launch</button>
-          <button className="icon-btn"><History size={16} /></button>
-          <div style={{ position: 'relative' }} ref={menuRef}>
-            <button className="icon-btn" onClick={() => {
-              console.log('3 dots button clicked!', 'Current showMenu:', showMenu);
-              const newShowMenu = !showMenu;
-              console.log('Setting showMenu to:', newShowMenu);
-              setShowMenu(newShowMenu);
-              console.log('showMenu state updated');
-            }}>
-              <MoreHorizontal size={16} />
-            </button>
-            {showMenu && (
-              <div className="dropdown-menu">
-                <div style={{ fontSize: '10px', color: 'yellow', padding: '2px', border: '1px solid yellow' }}>
-                  DEBUG: Dropdown menu rendered! showMenu = {String(showMenu)}
-                </div>
-                <button className="dropdown-item" onClick={() => { 
-                  console.log('Edit Game clicked');
-                  onEdit?.(); 
-                  setShowMenu(false); 
+          <button 
+            className={`icon-btn ${showGitManager ? 'active' : ''}`}
+            onClick={() => setShowGitManager(!showGitManager)}
+            title="Save History & Version Control"
+          >
+            <History size={16} />
+          </button>
+          <button 
+            className="icon-btn" 
+            onClick={() => setShowActionsModal(true)}
+            title="More options"
+          >
+            <MoreHorizontal size={16} />
+          </button>
+        </div>
+
+        {/* Game Actions Modal */}
+        {showActionsModal && (
+          <div className="modal-overlay" onClick={() => setShowActionsModal(false)}>
+            <div className="modal-content modal-small" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Game Actions</h3>
+                <button className="modal-close-btn" onClick={() => setShowActionsModal(false)}
+                  title="Close">
+                  <span className="close-icon">×</span>
+                </button>
+              </div>
+              <div className="modal-actions-list">
+                <button className="modal-action-item" onClick={() => { 
+                  setShowCheckpointDialog(true);
+                  setShowActionsModal(false); 
                 }}>
-                  <Edit size={14} />
+                  <Save size={18} />
+                  <span>Create Checkpoint</span>
+                </button>
+                <button className="modal-action-item" onClick={() => { 
+                  onEdit?.(); 
+                  setShowActionsModal(false); 
+                }}>
+                  <Edit size={18} />
                   <span>Edit Game</span>
                 </button>
-                <button className="dropdown-item danger" onClick={() => { 
-                  console.log('Delete clicked');
+                <button className="modal-action-item danger" onClick={() => { 
                   onDelete?.(); 
-                  setShowMenu(false); 
+                  setShowActionsModal(false); 
                 }}>
-                  <Trash2 size={14} />
-                  <span>Delete</span>
+                  <Trash2 size={18} />
+                  <span>Delete Game</span>
                 </button>
               </div>
-            )}
-            {!showMenu && (
-              <div style={{ fontSize: '10px', color: 'red', padding: '2px', position: 'absolute', top: '100%', right: 0, zIndex: 9999 }}>
-                DEBUG: Dropdown NOT rendered. showMenu = {String(showMenu)}
-              </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Checkpoint Creation Dialog */}
+        {showCheckpointDialog && (
+          <div className="modal-overlay" onClick={() => setShowCheckpointDialog(false)}>
+            <div className="modal-content modal-medium" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Create Save Checkpoint</h3>
+                <button className="modal-close-btn" onClick={() => setShowCheckpointDialog(false)}
+                  title="Close">
+                  <span className="close-icon">×</span>
+                </button>
+              </div>
+              <div className="modal-body">
+                {checkpointError && (
+                  <div className="error-box">
+                    {checkpointError}
+                  </div>
+                )}
+                <div className="form-group">
+                  <label>
+                    Save Name <span className="required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={checkpointName}
+                    onChange={(e) => setCheckpointName(e.target.value)}
+                    placeholder="e.g., Before Boss Fight"
+                    className="form-input"
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Description (optional)</label>
+                  <textarea
+                    value={checkpointDescription}
+                    onChange={(e) => setCheckpointDescription(e.target.value)}
+                    placeholder="Add any notes about this save point..."
+                    className="form-input"
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setShowCheckpointDialog(false);
+                    setCheckpointName('');
+                    setCheckpointDescription('');
+                    setCheckpointError(null);
+                  }}
+                  disabled={isCreatingCheckpoint}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    if (!checkpointName.trim()) {
+                      setCheckpointError('Please enter a save name');
+                      return;
+                    }
+                    try {
+                      setIsCreatingCheckpoint(true);
+                      setCheckpointError(null);
+                      const message = checkpointDescription.trim() 
+                        ? `${checkpointName}\n\n${checkpointDescription}`
+                        : checkpointName;
+                      await invoke('create_save_checkpoint', {
+                        gameId: game.id,
+                        message
+                      });
+                      setShowCheckpointDialog(false);
+                      setCheckpointName('');
+                      setCheckpointDescription('');
+                      // Refresh git history if it's visible
+                      if (showGitManager) {
+                        window.location.reload(); // Simple refresh for now
+                      }
+                    } catch (err) {
+                      setCheckpointError(`Failed to create checkpoint: ${err}`);
+                    } finally {
+                      setIsCreatingCheckpoint(false);
+                    }
+                  }}
+                  disabled={!checkpointName.trim() || isCreatingCheckpoint}
+                >
+                  {isCreatingCheckpoint ? 'Creating...' : 'Create Checkpoint'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Git Save Manager - Expandable */}
+        {showGitManager && (
+          <div className="git-manager-container" style={{ 
+            marginTop: '1rem',
+            padding: '1rem',
+            borderTop: '1px solid var(--border-color)',
+            backgroundColor: 'var(--surface-color)',
+            borderRadius: '8px'
+          }}>
+            <GitSaveManager game={{
+              id: game.id,
+              name: game.name,
+              platform: game.platform || '',
+              executable_path: game.executablePath || '',
+              installation_path: game.installation_path || ''
+            }} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -57,7 +57,7 @@ pub struct InstallDirConfig {
 pub struct WineConfig {
     pub prefix: Option<String>,
     pub exe: Option<String>,
-    pub dllOverrides: Option<HashMap<String, String>>,
+    pub dll_overrides: Option<HashMap<String, String>>,
 }
 
 /// Manifest parser

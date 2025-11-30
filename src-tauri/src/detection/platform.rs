@@ -1,4 +1,4 @@
-use crate::detection::{ProcessInfo, DetectionError, PlatformIdentifier};
+use crate::detection::{DetectionError, PlatformIdentifier};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -274,7 +274,7 @@ impl PlatformApiClient {
             })
     }
 
-    async fn process_platform_info(&self, mut info: PlatformGameInfo) -> Result<PlatformGameInfo, DetectionError> {
+    async fn process_platform_info(&self, info: PlatformGameInfo) -> Result<PlatformGameInfo, DetectionError> {
         // Enhance the platform info with additional data if available
 
         // For Steam, we could fetch game details from local storage

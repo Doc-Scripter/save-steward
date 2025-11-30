@@ -6,11 +6,6 @@ pub mod runtime_detection;
 pub mod confidence_scorer;
 
 pub use engine::GameIdentificationEngine;
-pub use platform::{PlatformApiClient, PlatformGameInfo};
-pub use process_monitor::ProcessMonitor;
-pub use executable_analysis::{ExecutableAnalyzer, ExecutableSignature};
-pub use runtime_detection::{RuntimeDetector, RuntimeSignature};
-pub use confidence_scorer::{ConfidenceScorer, ConfidenceScore};
 
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};

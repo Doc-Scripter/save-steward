@@ -1,12 +1,11 @@
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
 use chrono::{Utc, DateTime};
 use tokio::sync::RwLock;
 use rusqlite::params;
 
-use crate::database::{DatabaseConnection, DatabaseResult};
-use crate::auto_backup::{BackupError, BackupResult, BackupType as GlobalBackupType};
+use crate::database::{DatabaseConnection};
+use crate::auto_backup::{BackupResult, BackupType as GlobalBackupType};
 
 /// Manages retention policies for game backups
 #[derive(Clone)]

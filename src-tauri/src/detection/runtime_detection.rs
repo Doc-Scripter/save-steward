@@ -1,7 +1,6 @@
 use crate::detection::{ProcessInfo, DetectionError};
 use std::collections::HashMap;
 use regex::Regex;
-use tokio::time::{timeout, Duration};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
