@@ -157,7 +157,7 @@ pub async fn get_pcgw_save_locations(game_name: String) -> Result<serde_json::Va
 pub async fn detect_game_executable(folder_path: String, game_name: String) -> Result<String, String> {
     // First try to find stored executable data
     let db_path = crate::database::connection::DatabasePaths::database_file();
-    if let Ok(db) = crate::database::connection::EncryptedDatabase::new(&db_path, "default_password").await {
+    if let Ok(db) = crate::database::connection::Database::new(&db_path).await {
         let db_conn = std::sync::Arc::new(tokio::sync::Mutex::new(db));
 
         // Get all games and find one that matches

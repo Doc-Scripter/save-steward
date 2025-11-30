@@ -17,7 +17,7 @@ pub struct GameManager;
 impl GameManager {
     /// Add a game manually with automatic save location detection
     pub async fn add_manual_game(
-        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        db: &Arc<tokio::sync::Mutex<crate::database::connection::Database>>,
         request: AddGameRequest,
     ) -> Result<GameWithSaves, String> {
         // 1. Pre-fetch PCGamingWiki data (outside transaction)
@@ -134,13 +134,13 @@ impl GameManager {
     }
 
     pub async fn get_all_games(
-        db: &std::sync::Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        db: &std::sync::Arc<tokio::sync::Mutex<crate::database::connection::Database>>,
     ) -> Result<Vec<Game>, String> {
         Persistence::get_all_games(db).await
     }
 
     pub async fn update_game(
-        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        db: &Arc<tokio::sync::Mutex<crate::database::connection::Database>>,
         game_id: i64,
         request: AddGameRequest,
     ) -> Result<Game, String> {
@@ -148,7 +148,7 @@ impl GameManager {
     }
 
     pub async fn delete_game(
-        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        db: &Arc<tokio::sync::Mutex<crate::database::connection::Database>>,
         game_id: i64,
     ) -> Result<(), String> {
         Persistence::delete_game(db, game_id).await

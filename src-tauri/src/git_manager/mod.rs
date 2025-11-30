@@ -10,11 +10,11 @@ pub mod history;
 // TODO: Fix cloud.rs compilation errors (42 errors) before enabling
 // pub mod cloud;
 
-use crate::database::connection::{EncryptedDatabase, DatabasePaths};
+use crate::database::connection::{Database, DatabasePaths};
 use chrono::{DateTime, Utc};
 
 pub struct GitSaveManager {
-    db: std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>,
+    db: std::sync::Arc<tokio::sync::Mutex<Database>>,
     master_repo_path: String,
 }
 
@@ -35,7 +35,7 @@ pub struct GitSaveHistory {
 }
 
 impl GitSaveManager {
-    pub fn new(db: std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>) -> Self {
+    pub fn new(db: std::sync::Arc<tokio::sync::Mutex<Database>>) -> Self {
         // Use a centralized saves directory
         let saves_dir = DatabasePaths::default_app_data_dir().join("game_saves");
         

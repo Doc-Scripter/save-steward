@@ -9,13 +9,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use chrono::{DateTime, Utc};
-use crate::database::connection::EncryptedDatabase;
+use crate::database::connection::Database;
 use crate::git_manager::types::*;
 
 /// Manages Git repositories for game saves
 pub struct GitRepositoryManager {
     /// Database connection for metadata
-    db: Arc<Mutex<EncryptedDatabase>>,
+    db: Arc<Mutex<Database>>,
     /// Cache of open repositories
     repo_cache: std::collections::HashMap<i64, Repository>,
     /// Base directory for save repositories
@@ -24,7 +24,7 @@ pub struct GitRepositoryManager {
 
 impl GitRepositoryManager {
     /// Create new repository manager
-    pub fn new(db: Arc<Mutex<EncryptedDatabase>>) -> Self {
+    pub fn new(db: Arc<Mutex<Database>>) -> Self {
         let base_path = dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("save-steward")

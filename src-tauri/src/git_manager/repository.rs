@@ -1,11 +1,11 @@
-use crate::database::connection::EncryptedDatabase;
+use crate::database::connection::Database;
 use git2::{Repository, Signature};
 use tokio::fs;
 use chrono::Utc;
 
 /// Initialize master repository for all game saves
 pub async fn initialize_master_repo(
-    db: &std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>,
+    db: &std::sync::Arc<tokio::sync::Mutex<Database>>,
     master_repo_path: &str
 ) -> Result<String, String> {
     // Ensure directory exists
@@ -103,7 +103,7 @@ fn make_initial_commit(repo: &Repository, message: &str) -> Result<(), String> {
 }
 
 pub async fn save_repo_config(
-    db: &std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>,
+    db: &std::sync::Arc<tokio::sync::Mutex<Database>>,
     game_id: i64, 
     repo_path: &str
 ) -> Result<(), String> {

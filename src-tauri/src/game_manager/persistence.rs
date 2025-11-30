@@ -140,7 +140,7 @@ impl Persistence {
 
     /// Get all active games
     pub async fn get_all_games(
-        db: &std::sync::Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        db: &std::sync::Arc<tokio::sync::Mutex<crate::database::connection::Database>>,
     ) -> Result<Vec<Game>, String> {
         let conn_guard = db.lock().await;
         let conn = conn_guard.get_connection().await;
@@ -191,7 +191,7 @@ impl Persistence {
 
     /// Update an existing game
     pub async fn update_game(
-        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        db: &Arc<tokio::sync::Mutex<crate::database::connection::Database>>,
         game_id: i64,
         request: AddGameRequest,
     ) -> Result<Game, String> {
@@ -237,7 +237,7 @@ impl Persistence {
 
     /// Delete a game and all associated data
     pub async fn delete_game(
-        db: &Arc<tokio::sync::Mutex<crate::database::connection::EncryptedDatabase>>,
+        db: &Arc<tokio::sync::Mutex<crate::database::connection::Database>>,
         game_id: i64,
     ) -> Result<(), String> {
         let conn_guard = db.lock().await;

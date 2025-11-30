@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use chrono::Utc;
-use crate::database::connection::EncryptedDatabase;
+use crate::database::connection::Database;
 use crate::git_manager::types::*;
 
 /// GitHub API client
@@ -28,14 +28,14 @@ pub struct GitLabClient {
 
 /// Main cloud synchronization manager
 pub struct CloudSyncManager {
-    db: Arc<Mutex<EncryptedDatabase>>,
+    db: Arc<Mutex<Database>>,
     github: GitHubClient,
     gitlab: GitLabClient,
 }
 
 impl CloudSyncManager {
     /// Create new cloud sync manager
-    pub fn new(db: Arc<Mutex<EncryptedDatabase>>) -> Self {
+    pub fn new(db: Arc<Mutex<Database>>) -> Self {
         Self {
             db,
             github: GitHubClient::new(),

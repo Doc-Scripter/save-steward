@@ -1,10 +1,10 @@
-use crate::database::connection::EncryptedDatabase;
+use crate::database::connection::Database;
 use git2::Repository;
 use chrono::Utc;
 
 /// Create a save checkpoint with user-named branch
 pub async fn create_save_checkpoint(
-    db: &std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>,
+    db: &std::sync::Arc<tokio::sync::Mutex<Database>>,
     master_repo_path: &str,
     game_id: i64, 
     save_name: &str
@@ -77,7 +77,7 @@ pub async fn create_save_checkpoint(
 
 /// Create a new branch (alias for create_save_checkpoint)
 pub async fn create_save_branch(
-    db: &std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>,
+    db: &std::sync::Arc<tokio::sync::Mutex<Database>>,
     master_repo_path: &str,
     game_id: i64, 
     branch_name: &str, 
@@ -90,7 +90,7 @@ pub async fn create_save_branch(
 
 /// Switch to a branch
 pub async fn switch_save_branch(
-    db: &std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>,
+    db: &std::sync::Arc<tokio::sync::Mutex<Database>>,
     master_repo_path: &str,
     game_id: i64, 
     branch_name: &str
@@ -161,7 +161,7 @@ pub async fn delete_save_branch(master_repo_path: &str, branch_name: &str) -> Re
 }
 
 async fn save_branch_info(
-    db: &std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>,
+    db: &std::sync::Arc<tokio::sync::Mutex<Database>>,
     game_id: i64, 
     branch_name: &str, 
     description: Option<&str>
@@ -184,7 +184,7 @@ async fn save_branch_info(
 }
 
 async fn update_active_branch(
-    db: &std::sync::Arc<tokio::sync::Mutex<EncryptedDatabase>>,
+    db: &std::sync::Arc<tokio::sync::Mutex<Database>>,
     game_id: i64, 
     branch_name: &str
 ) -> Result<(), String> {
