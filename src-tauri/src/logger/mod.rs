@@ -26,8 +26,11 @@ pub struct LogConfig {
 
 impl Default for LogConfig {
     fn default() -> Self {
+        // Use same app data directory as database files for consistency
+        let app_data_dir = crate::database::connection::DatabasePaths::default_app_data_dir();
+
         Self {
-            log_file_path: PathBuf::from("save-steward.log"),
+            log_file_path: app_data_dir.join("save-steward.log"),
             max_file_size_bytes: 10 * 1024 * 1024, // 10MB
             max_log_files: 5,
             enable_console_output: true,
